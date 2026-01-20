@@ -40,6 +40,25 @@ class Config:
         # Google Places API Settings
         self.google_places_max_results = int(os.getenv("GOOGLE_PLACES_MAX_RESULTS", "20"))
         
+        # Competitor Analysis Settings
+        self.competitor_analysis_max_competitors = int(
+            os.getenv("COMPETITOR_ANALYSIS_MAX_COMPETITORS", "5")
+        )
+        
+        # Website Scraper Settings
+        self.website_scraper_timeout = int(os.getenv("WEBSITE_SCRAPER_TIMEOUT", "10"))
+        
+        # Content Generation Settings
+        self.content_generation_temperature = float(
+            os.getenv("CONTENT_GENERATION_TEMPERATURE", "0.7")
+        )
+        self.competitor_analysis_temperature = float(
+            os.getenv("COMPETITOR_ANALYSIS_TEMPERATURE", "0.3")
+        )
+        
+        # Logging Settings
+        self.log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+        
         # Validate required configuration
         self._validate()
     
@@ -79,7 +98,12 @@ class Config:
             f"llm_provider={self.llm_provider}, "
             f"llm_model={self.llm_model}, "
             f"output_dir={self.output_dir}, "
-            f"google_places_max_results={self.google_places_max_results}"
+            f"google_places_max_results={self.google_places_max_results}, "
+            f"competitor_analysis_max_competitors={self.competitor_analysis_max_competitors}, "
+            f"website_scraper_timeout={self.website_scraper_timeout}, "
+            f"content_generation_temperature={self.content_generation_temperature}, "
+            f"competitor_analysis_temperature={self.competitor_analysis_temperature}, "
+            f"log_level={self.log_level}"
             f")"
         )
 
