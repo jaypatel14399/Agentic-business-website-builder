@@ -1,0 +1,29 @@
+# Core LangChain dependencies
+langchain>=0.1.0
+langchain-openai>=0.0.5
+langchain-community>=0.0.20
+
+# Google Places API
+googlemaps>=4.10.0
+
+# HTTP requests and web scraping
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+
+# Template engine for site generation
+jinja2>=3.1.2
+
+# Environment variable management
+python-dotenv>=1.0.0
+
+# CLI interface
+click>=8.1.7
+
+# Utilities
+pydantic>=2.5.0
+typing-extensions>=4.8.0
+
+# Testing
+pytest>=7.4.0
+pytest-mock>=3.11.0
+
