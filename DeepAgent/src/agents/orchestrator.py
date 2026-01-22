@@ -1,7 +1,7 @@
 """Orchestrator agent for coordinating the complete website generation workflow."""
 
 import logging
-from typing import List, Optional
+from typing import List, Optional, Callable, Dict, Any
 from pathlib import Path
 
 from src.models.business import Business
@@ -63,7 +63,8 @@ class OrchestratorAgent:
         industry: str,
         city: str,
         state: str,
-        limit: Optional[int] = None
+        limit: Optional[int] = None,
+        progress_callback: Optional[Callable[[str, float, Dict[str, Any]], None]] = None
     ) -> List[Path]:
         """
         Main entry point for generating websites for businesses without websites.
@@ -83,6 +84,7 @@ class OrchestratorAgent:
             city: City name (e.g., "Austin").
             state: State abbreviation (e.g., "TX").
             limit: Optional limit on number of businesses to process.
+            progress_callback: Optional callback function(step, progress, details) for progress updates.
         
         Returns:
             List of Paths to successfully generated websites.
@@ -96,6 +98,8 @@ class OrchestratorAgent:
         
         try:
             # Step 1: Business Discovery
+            if progress_callback:
+                progress_callback("discovering_businesses", 5.0, {"message": "Discovering businesses..."})
             logger.info("Step 1: Discovering businesses...")
             businesses = self.business_discovery_agent.discover_businesses(
                 industry=industry,
@@ -105,11 +109,17 @@ class OrchestratorAgent:
             
             if not businesses:
                 logger.warning("No businesses found. Exiting workflow.")
+                if progress_callback:
+                    progress_callback("completed", 100.0, {"message": "No businesses found"})
                 return generated_paths
             
             logger.info(f"Discovered {len(businesses)} businesses")
+            if progress_callback:
+                progress_callback("discovering_businesses", 20.0, {"businesses_found": len(businesses)})
             
             # Step 2: Website Detection
+            if progress_callback:
+                progress_callback("detecting_websites", 25.0, {"message": "Detecting existing websites..."})
             logger.info("Step 2: Detecting websites for businesses...")
             businesses_with_website_status = self.website_detection_agent.detect_websites(
                 businesses
@@ -124,8 +134,15 @@ class OrchestratorAgent:
                 f"{len(businesses_with_websites)}/{len(businesses_with_website_status)} "
                 f"businesses have websites"
             )
+            if progress_callback:
+                progress_callback("detecting_websites", 35.0, {
+                    "businesses_with_websites": len(businesses_with_websites),
+                    "total_businesses": len(businesses_with_website_status)
+                })
             
             # Step 3: Filter Businesses Without Websites
+            if progress_callback:
+                progress_callback("filtering_businesses", 40.0, {"message": "Filtering businesses without websites..."})
             logger.info("Step 3: Filtering businesses without websites...")
             businesses_without_websites = [
                 b for b in businesses_with_website_status 
@@ -134,6 +151,8 @@ class OrchestratorAgent:
             
             if not businesses_without_websites:
                 logger.info("All businesses have websites. No websites to generate.")
+                if progress_callback:
+                    progress_callback("completed", 100.0, {"message": "All businesses have websites"})
                 return generated_paths
             
             # Apply limit if specified
@@ -145,16 +164,36 @@ class OrchestratorAgent:
                 f"Found {len(businesses_without_websites)} businesses without websites "
                 f"to process"
             )
+            if progress_callback:
+                progress_callback("filtering_businesses", 45.0, {
+                    "businesses_to_process": len(businesses_without_websites)
+                })
             
             # Step 4: For Each Business Without Website
             total_businesses = len(businesses_without_websites)
+            base_progress = 45.0
+            progress_per_business = 50.0 / total_businesses if total_businesses > 0 else 0
+            
             for idx, business in enumerate(businesses_without_websites, 1):
+                current_progress = base_progress + (idx - 1) * progress_per_business
+                if progress_callback:
+                    progress_callback("processing_business", current_progress, {
+                        "business_index": idx,
+                        "total_businesses": total_businesses,
+                        "business_name": business.name
+                    })
+                
                 logger.info(
                     f"Processing business {idx}/{total_businesses}: {business.name}"
                 )
                 
                 try:
                     # Step 4a: Find Competitors
+                    if progress_callback:
+                        progress_callback("finding_competitors", current_progress + progress_per_business * 0.1, {
+                            "business_name": business.name,
+                            "message": f"Finding competitors for {business.name}..."
+                        })
                     logger.info(f"Finding competitors for {business.name}...")
                     competitors = self._find_competitors(
                         all_businesses=businesses_with_website_status,
@@ -173,6 +212,12 @@ class OrchestratorAgent:
                     competitor_analysis = None
                     if competitors:
                         try:
+                            if progress_callback:
+                                progress_callback("analyzing_competitors", current_progress + progress_per_business * 0.2, {
+                                    "business_name": business.name,
+                                    "competitors_count": len(competitors),
+                                    "message": f"Analyzing {len(competitors)} competitors..."
+                                })
                             logger.info(
                                 f"Analyzing competitors for {business.name}..."
                             )
@@ -200,6 +245,11 @@ class OrchestratorAgent:
                     
                     # Step 4c: Generate Website Content
                     try:
+                        if progress_callback:
+                            progress_callback("generating_content", current_progress + progress_per_business * 0.5, {
+                                "business_name": business.name,
+                                "message": f"Generating content for {business.name}..."
+                            })
                         logger.info(
                             f"Generating website content for {business.name}..."
                         )
@@ -228,6 +278,11 @@ class OrchestratorAgent:
                     
                     # Step 4d: Generate Next.js Site
                     try:
+                        if progress_callback:
+                            progress_callback("generating_site", current_progress + progress_per_business * 0.8, {
+                                "business_name": business.name,
+                                "message": f"Generating Next.js site for {business.name}..."
+                            })
                         logger.info(
                             f"Generating Next.js site for {business.name}..."
                         )
@@ -241,6 +296,12 @@ class OrchestratorAgent:
                             f"✓ Successfully generated website for {business.name} "
                             f"at {site_path}"
                         )
+                        if progress_callback:
+                            progress_callback("business_completed", current_progress + progress_per_business, {
+                                "business_name": business.name,
+                                "site_path": str(site_path),
+                                "websites_generated": len(generated_paths)
+                            })
                     except Exception as e:
                         logger.error(
                             f"Error generating Next.js site for {business.name}: {str(e)}",
@@ -262,6 +323,13 @@ class OrchestratorAgent:
                 f"Workflow completed: Generated {len(generated_paths)}/{total_businesses} "
                 f"websites successfully"
             )
+            
+            if progress_callback:
+                progress_callback("completed", 100.0, {
+                    "websites_generated": len(generated_paths),
+                    "total_businesses": total_businesses,
+                    "message": f"Successfully generated {len(generated_paths)} websites"
+                })
             
             return generated_paths
             

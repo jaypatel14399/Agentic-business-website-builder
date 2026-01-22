@@ -4,6 +4,11 @@ import sys
 import logging
 from pathlib import Path
 
+# Add project root to Python path to enable absolute imports
+project_root = Path(__file__).parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 import click
 
 from src.utils.config import get_config

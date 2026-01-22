@@ -78,14 +78,57 @@ OPENAI_API_KEY=your_key_here
 
 ## Usage
 
+### CLI Mode (Original)
+
 ```bash
 python src/main.py --industry "roofing" --city "Austin" --state "TX" --limit 5
 ```
+
+### Web UI Mode (New)
+
+**Development Mode:**
+```bash
+# Option 1: Use startup script (recommended)
+./start.sh          # Linux/Mac
+start.bat           # Windows
+
+# Option 2: Manual start
+# Terminal 1: Start backend
+cd api && uvicorn main:app --reload --port 8000
+
+# Terminal 2: Start frontend
+cd frontend && npm install && npm run dev
+```
+
+**Production Mode (Docker):**
+```bash
+./start-prod.sh     # Linux/Mac
+# Or manually:
+docker-compose up -d
+```
+
+**Access:**
+- Frontend UI: http://localhost:5173 (dev) or http://localhost (prod)
+- Backend API: http://localhost:8000
+- API Docs: http://localhost:8000/docs
 
 ## Project Structure
 
 ```
 DeepAgent/
+├── api/                  # FastAPI backend
+│   ├── main.py          # FastAPI application
+│   ├── routes/          # API routes
+│   ├── models/          # Pydantic models
+│   ├── tasks/           # Background tasks
+│   ├── storage/         # Job storage
+│   └── websocket_manager.py
+├── frontend/            # React frontend
+│   ├── src/
+│   │   ├── components/ # UI components
+│   │   ├── hooks/      # React hooks
+│   │   └── api/        # API client
+│   └── package.json
 ├── src/
 │   ├── agents/          # LangChain agents
 │   ├── services/        # External API integrations
@@ -94,6 +137,12 @@ DeepAgent/
 │   ├── utils/           # Configuration and utilities
 │   └── main.py          # CLI entry point
 ├── generated_sites/      # Output directory for generated websites
+├── docker-compose.yml   # Docker configuration
+├── Dockerfile           # Backend Docker image
+├── Dockerfile.frontend  # Frontend Docker image
+├── start.sh             # Development startup script
+├── start.bat            # Windows startup script
+├── start-prod.sh        # Production startup script
 ├── requirements.txt
 ├── .env.example
 └── README.md

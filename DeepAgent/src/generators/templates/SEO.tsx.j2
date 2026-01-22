@@ -1,0 +1,36 @@
+export default function SEO() {
+  const structuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'LocalBusiness',
+    name: '{{ business.name }}',
+    {% if contact.address_display %}
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: '{{ business.address }}',
+      addressLocality: '{{ business.city }}',
+      {% if business.state %}
+      addressRegion: '{{ business.state }}',
+      {% endif %}
+    },
+    {% endif %}
+    {% if contact.phone_display and contact.phone_display != "N/A" %}
+    telephone: '{{ business.phone }}',
+    {% endif %}
+    {% if business.rating %}
+    aggregateRating: {
+      '@type': 'AggregateRating',
+      ratingValue: '{{ business.rating }}',
+      ratingCount: {{ business.reviews|length if business.reviews else 0 }},
+    },
+    {% endif %}
+  };
+
+  return (
+    <>
+      {/* Structured Data for Local Business */}
+      <script type="application/ld+json">
+        {JSON.stringify(structuredData)}
+      </script>
+    </>
+  )
+}

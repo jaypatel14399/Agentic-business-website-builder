@@ -1,0 +1,93 @@
+import SEO from '@/components/SEO'
+
+export const metadata = {
+  title: '{{ about_content.title }} | {{ business.name }}',
+  description: '{{ about_content.description[:160] }}',
+}
+
+export default function AboutPage() {
+  return (
+    <>
+      <SEO />
+      
+      {/* Hero Section */}
+      <section className="bg-gradient-to-r from-primary-600 to-primary-800 text-white py-16 px-4">
+        <div className="container mx-auto max-w-4xl text-center">
+          <h1 className="text-5xl font-bold mb-6">
+            {{ about_content.title }}
+          </h1>
+        </div>
+      </section>
+
+      {/* Main Content */}
+      <section className="py-16 px-4">
+        <div className="container mx-auto max-w-4xl">
+          <div className="prose prose-lg max-w-none">
+            <div className="mb-8">
+              <p className="text-lg text-gray-700 leading-relaxed whitespace-pre-line">
+                {{ about_content.description }}
+              </p>
+            </div>
+
+            {% if about_content.history %}
+            <div className="mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-4">Our Story</h2>
+              <p className="text-lg text-gray-700 leading-relaxed whitespace-pre-line">
+                {{ about_content.history }}
+              </p>
+            </div>
+            {% endif %}
+
+            {% if about_content['values'] and about_content['values']|length > 0 %}
+            <div className="mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-6">Our Values</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {% for value in about_content['values'] %}
+                <div className="bg-gray-50 p-6 rounded-lg">
+                  <h3 className="text-xl font-semibold text-primary-600 mb-2">
+                    {{ value }}
+                  </h3>
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+
+            <div className="bg-primary-50 p-8 rounded-lg mt-12">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                Why Choose {{ business.name }}?
+              </h2>
+              <ul className="list-disc list-inside space-y-2 text-gray-700">
+                <li>Located in {{ business.city }}{% if business.state %}, {{ business.state }}{% endif %}</li>
+                <li>Experienced in {{ business.industry }} services</li>
+                {% if business.rating %}
+                <li>{{ business.rating }}-star rated business</li>
+                {% endif %}
+                <li>Committed to customer satisfaction</li>
+                <li>Professional and reliable service</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Contact CTA */}
+      <section className="py-16 px-4 bg-gray-50">
+        <div className="container mx-auto max-w-4xl text-center">
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">
+            Get In Touch
+          </h2>
+          <p className="text-lg text-gray-600 mb-8">
+            Have questions or want to learn more? Contact us today!
+          </p>
+          <a
+            href="/contact"
+            className="inline-block bg-primary-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-primary-700 transition-colors"
+          >
+            Contact Us
+          </a>
+        </div>
+      </section>
+    </>
+  )
+}
