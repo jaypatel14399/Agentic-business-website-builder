@@ -7,7 +7,7 @@
 ```bash
 # From project root
 cd api
-uvicorn main:app --reload --port 8000
+From project root (DeepAgent): `uvicorn api.main:app --reload --port 8000`
 ```
 
 ### Production Mode

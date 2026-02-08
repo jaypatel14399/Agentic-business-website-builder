@@ -93,8 +93,8 @@ python src/main.py --industry "roofing" --city "Austin" --state "TX" --limit 5
 start.bat           # Windows
 
 # Option 2: Manual start
-# Terminal 1: Start backend
-cd api && uvicorn main:app --reload --port 8000
+# Terminal 1: Start backend (from project root)
+uvicorn api.main:app --reload --port 8000
 
 # Terminal 2: Start frontend
 cd frontend && npm install && npm run dev
