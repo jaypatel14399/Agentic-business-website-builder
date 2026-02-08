@@ -191,6 +191,7 @@ Generate comprehensive website content including:
    - Meta keywords (list of 5-10 relevant keywords, include location-based keywords)
    - Open Graph title (for social media sharing)
    - Open Graph description (for social media sharing)
+   - Do NOT use apostrophes or single quotes (') in meta_title, meta_description, og_title, or og_description. These values are embedded in code. Use alternatives instead (e.g. "we have" not "we've", "premier" or "top" instead of "Austin's").
 
 5. **Call-to-Action Phrases**:
    Generate 5-7 action-oriented CTA phrases appropriate for this industry and business type.
@@ -218,6 +219,7 @@ Generate comprehensive website content including:
 - Focus on benefits and value proposition
 - Make content location-aware (mention city/state naturally)
 - Ensure all content is original and tailored to this specific business
+- In all SEO/meta fields (meta_title, meta_description, og_title, og_description), avoid apostrophes and single quotes so the text can be safely embedded in code
 
 Return your response as a JSON object with the following structure:
 {{

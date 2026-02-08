@@ -2,19 +2,19 @@ export default function SEO() {
   const structuredData = {
     '@context': 'https://schema.org',
     '@type': 'LocalBusiness',
-    name: '{{ business.name }}',
+    name: '{{ business_escaped.name }}',
     {% if contact.address_display %}
     address: {
       '@type': 'PostalAddress',
-      streetAddress: '{{ business.address }}',
-      addressLocality: '{{ business.city }}',
+      streetAddress: '{{ business_escaped.address }}',
+      addressLocality: '{{ business_escaped.city }}',
       {% if business.state %}
-      addressRegion: '{{ business.state }}',
+      addressRegion: '{{ business_escaped.state }}',
       {% endif %}
     },
     {% endif %}
     {% if contact.phone_display and contact.phone_display != "N/A" %}
-    telephone: '{{ business.phone }}',
+    telephone: '{{ business_escaped.phone }}',
     {% endif %}
     {% if business.rating %}
     aggregateRating: {

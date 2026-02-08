@@ -3,7 +3,7 @@
 import logging
 import re
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 from datetime import datetime
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -39,7 +39,8 @@ class NextJSGenerator:
             trim_blocks=True,
             lstrip_blocks=True
         )
-        
+        self.env.filters['escape_js'] = self._escape_js
+
         logger.info(f"NextJSGenerator initialized with output path: {self.output_path}")
     
     def generate_website(
@@ -119,14 +120,27 @@ class NextJSGenerator:
         contact = content.get('contact', {})
         footer = content.get('footer', {})
         
+        # Escape strings that are interpolated into JS/TS string literals only (layout.tsx, SEO.tsx)
+        # so apostrophes/quotes in LLM output don't break syntax. Keep business/contact unescaped
+        # for normal JSX text (e.g. {{ business.name }} on the page).
+        def safe_esc(s: Any) -> str:
+            return self._escape_js(s) if s is not None and isinstance(s, str) else self._escape_js(str(s) if s is not None else '')
+
+        default_meta_title = f'{business.name} | {business.industry.title()} Services'
+        default_og_title = business.name
+        contact_phone = contact.get('phone_display', business.phone or 'N/A')
+        contact_address = contact.get('address_display', business.address)
+        if contact_address is None:
+            contact_address = business.address or ''
+
         # Prepare template data
         template_data = {
-            # Business data
+            # Business data (unescaped for JSX text; use business_escaped in SEO.tsx only)
             'business': {
                 'name': business.name,
-                'address': business.address,
+                'address': business.address or '',
                 'phone': business.phone or '',
-                'city': business.city,
+                'city': business.city or '',
                 'state': business.state or '',
                 'industry': business.industry,
                 'rating': business.rating,
@@ -134,7 +148,22 @@ class NextJSGenerator:
             },
             'business_slug': business_slug,
             'current_year': current_year,
-            
+
+            # Escaped business/contact for SEO.tsx (TS string literals only)
+            'business_escaped': {
+                'name': safe_esc(business.name),
+                'address': safe_esc(business.address or ''),
+                'phone': safe_esc(business.phone or ''),
+                'city': safe_esc(business.city or ''),
+                'state': safe_esc(business.state or ''),
+            },
+            'contact_escaped': {
+                'form_title': safe_esc(contact.get('form_title', 'Get In Touch')),
+                'form_description': safe_esc(contact.get('form_description', '')),
+                'phone_display': safe_esc(contact_phone if isinstance(contact_phone, str) else str(contact_phone)),
+                'address_display': safe_esc(contact_address),
+            },
+
             # Content data
             'business_info': {
                 'name': business_info.get('name', business.name),
@@ -149,11 +178,11 @@ class NextJSGenerator:
             },
             'services': services,
             'seo': {
-                'meta_title': seo.get('meta_title', f'{business.name} | {business.industry.title()} Services'),
-                'meta_description': seo.get('meta_description', ''),
+                'meta_title': safe_esc(seo.get('meta_title', default_meta_title)),
+                'meta_description': safe_esc(seo.get('meta_description', '')),
                 'meta_keywords': seo.get('meta_keywords', []),
-                'og_title': seo.get('og_title', business.name),
-                'og_description': seo.get('og_description', ''),
+                'og_title': safe_esc(seo.get('og_title', default_og_title)),
+                'og_description': safe_esc(seo.get('og_description', '')),
             },
             'call_to_actions': call_to_actions[:7],  # Limit to 7
             'testimonials_section': {
@@ -163,8 +192,8 @@ class NextJSGenerator:
             'contact': {
                 'form_title': contact.get('form_title', 'Get In Touch'),
                 'form_description': contact.get('form_description', ''),
-                'phone_display': contact.get('phone_display', business.phone or 'N/A'),
-                'address_display': contact.get('address_display', business.address),
+                'phone_display': contact_phone,
+                'address_display': contact_address if contact_address is not None else (business.address or ''),
             },
             'footer': {
                 'description': footer.get('description', ''),
@@ -253,9 +282,9 @@ class NextJSGenerator:
         output_path: Path,
         data: Dict[str, Any]
     ) -> None:
-        """Generate all component files."""
+        """Generate all component files. Fails the run if SEO.tsx cannot be generated."""
         logger.info("Generating component files")
-        
+
         components = [
             ('Header.tsx.j2', output_path / 'src' / 'components' / 'Header.tsx'),
             ('Footer.tsx.j2', output_path / 'src' / 'components' / 'Footer.tsx'),
@@ -263,11 +292,20 @@ class NextJSGenerator:
             ('SEO.tsx.j2', output_path / 'src' / 'components' / 'SEO.tsx'),
             ('ContactForm.tsx.j2', output_path / 'src' / 'components' / 'ContactForm.tsx'),
         ]
-        
+
         for template_name, output_file in components:
             try:
                 self._generate_file(template_name, output_file, data)
             except Exception as e:
+                if template_name == 'SEO.tsx.j2':
+                    logger.error(
+                        f"Failed to generate required component {output_file.name}: {e}",
+                        exc_info=True
+                    )
+                    raise RuntimeError(
+                        f"Failed to generate SEO component: {e}. "
+                        "Generated sites require SEO.tsx."
+                    ) from e
                 logger.warning(
                     f"Failed to generate {output_file.name}: {str(e)}. "
                     "Continuing with other files..."
@@ -346,26 +384,29 @@ class NextJSGenerator:
         
         return text
     
-    def _escape_js(self, text: str) -> str:
+    def _escape_js(self, text: Any) -> str:
         """
-        Escape text for use in JavaScript/JSX.
-        
+        Escape text for use in JavaScript/JSX string literals.
+        Handles None and non-strings; safe for single- or double-quoted literals.
+
         Args:
-            text: Text to escape.
-        
+            text: Text to escape (str, None, or coercible to str).
+
         Returns:
-            Escaped text safe for JSX.
+            Escaped text safe for JS/TS string literals.
         """
+        if text is None:
+            return ''
+        if not isinstance(text, str):
+            text = str(text)
         if not text:
             return ''
-        
-        # Escape quotes
+
+        # Escape backslash first, then quotes, then newlines
         text = text.replace('\\', '\\\\')
         text = text.replace('"', '\\"')
         text = text.replace("'", "\\'")
-        
-        # Escape newlines
         text = text.replace('\n', '\\n')
         text = text.replace('\r', '')
-        
+
         return text
