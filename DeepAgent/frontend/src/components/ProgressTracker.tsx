@@ -1,93 +1,83 @@
 import { ProgressUpdate } from '../types';
+import {
+  PIPELINE_STEPS,
+  getStepLabel,
+  isStepActive,
+  isStepCompleted,
+} from '../constants/pipelineSteps';
 
 interface ProgressTrackerProps {
   progress?: ProgressUpdate;
   status: string;
 }
 
+/** Steps to show in the list (exclude initializing and failed as separate row; failed shown in summary) */
+const TRACKER_STEP_IDS = PIPELINE_STEPS.filter(
+  (s) => s.id !== 'initializing' && s.id !== 'failed'
+).map((s) => s.id);
+
 export const ProgressTracker = ({ progress, status }: ProgressTrackerProps) => {
-  const steps = [
-    { id: 'discovering_businesses', label: 'Discovering Businesses', progress: 0 },
-    { id: 'detecting_websites', label: 'Detecting Websites', progress: 0 },
-    { id: 'filtering_businesses', label: 'Filtering', progress: 0 },
-    { id: 'processing_business', label: 'Processing Businesses', progress: 0 },
-    { id: 'completed', label: 'Completed', progress: 0 },
-  ];
+  const currentStepId = progress?.step ?? '';
+  const details = progress?.details ?? {};
+  const isDone = currentStepId === 'completed' || currentStepId === 'failed' || status === 'completed' || status === 'failed';
+  const websitesGenerated = details.websites_generated as number | undefined;
+  const totalBusinesses = details.total_businesses as number | undefined;
+  const errorMessage = details.error as string | undefined;
+  const message = details.message as string | undefined;
 
-  const getStepProgress = (stepId: string) => {
-    if (!progress) return 0;
-    
-    const stepMap: Record<string, number> = {
-      discovering_businesses: 20,
-      detecting_websites: 35,
-      filtering_businesses: 45,
-      processing_business: 95,
-      completed: 100,
-    };
-
-    if (progress.step === stepId) {
-      return progress.progress;
-    }
-
-    const currentStepIndex = steps.findIndex((s) => s.id === progress.step);
-    const stepIndex = steps.findIndex((s) => s.id === stepId);
-
-    if (stepIndex < currentStepIndex) {
-      return stepMap[stepId] || 0;
-    }
-    if (stepIndex > currentStepIndex) {
-      return 0;
-    }
-
-    return 0;
-  };
-
-  const getCurrentStepIndex = () => {
-    if (!progress) return -1;
-    return steps.findIndex((s) => s.id === progress.step);
-  };
-
-  const currentStepIndex = getCurrentStepIndex();
+  const stepsToShow = PIPELINE_STEPS.filter((s) => TRACKER_STEP_IDS.includes(s.id));
 
   return (
-    <div style={styles.container}>
-      <h3 style={styles.title}>Progress</h3>
-      <div style={styles.statusBadge}>
-        Status: <span style={styles.statusValue}>{status}</span>
+    <div className="progress-tracker">
+      <h3 className="progress-tracker__title">Progress</h3>
+      <div className="progress-tracker__status">
+        Status: <span className="progress-tracker__status-value">{status}</span>
       </div>
       {progress && (
-        <div style={styles.progressBar}>
+        <div className="progress-tracker__bar">
           <div
-            style={{
-              ...styles.progressFill,
-              width: `${progress.progress}%`,
-            }}
+            className="progress-tracker__bar-fill"
+            style={{ width: `${progress.progress}%` }}
           />
         </div>
       )}
-      <div style={styles.steps}>
-        {steps.map((step, idx) => {
-          const stepProgress = getStepProgress(step.id);
-          const isActive = idx === currentStepIndex;
-          const isCompleted = idx < currentStepIndex;
+      <div className="progress-tracker__steps">
+        {stepsToShow.map((step) => {
+          const active = isStepActive(currentStepId, step.id);
+          const completed = isStepCompleted(currentStepId, step.id);
 
           return (
             <div
               key={step.id}
-              style={{
-                ...styles.step,
-                ...(isActive ? styles.stepActive : {}),
-                ...(isCompleted ? styles.stepCompleted : {}),
-              }}
+              className={`progress-tracker__step progress-tracker__step--${completed ? 'completed' : active ? 'active' : 'pending'}`}
             >
-              <div style={styles.stepIndicator}>
-                {isCompleted ? '✓' : idx + 1}
+              <div className="progress-tracker__step-indicator">
+                {completed ? '✓' : stepsToShow.indexOf(step) + 1}
               </div>
-              <div style={styles.stepContent}>
-                <div style={styles.stepLabel}>{step.label}</div>
-                {isActive && progress?.details && (
-                  <div style={styles.stepDetails}>
-                    {progress.details.message || JSON.stringify(progress.details)}
+              <div className="progress-tracker__step-content">
+                <div className="progress-tracker__step-label">{getStepLabel(step.id)}</div>
+                {active && progress?.details && (
+                  <div className="progress-tracker__step-details">
+                    {details.business_name && (
+                      <span className="progress-tracker__business-name">
+                        {details.business_name}
+                        {details.business_index != null && details.total_businesses != null && (
+                          <span className="progress-tracker__business-index">
+                            {' '}({details.business_index}/{details.total_businesses})
+                          </span>
+                        )}
+                      </span>
+                    )}
+                    {(message || details.message) && (
+                      <span className="progress-tracker__message">
+                        {message ?? details.message}
+                      </span>
+                    )}
+                    {!details.business_name && !message && !details.message && Object.keys(details).length > 0 && (
+                      <span className="progress-tracker__message">
+                        {JSON.stringify(details)}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
@@ -95,90 +85,26 @@ export const ProgressTracker = ({ progress, status }: ProgressTrackerProps) => {
           );
         })}
       </div>
+      {isDone && (
+        <div className={`progress-tracker__summary progress-tracker__summary--${currentStepId === 'failed' ? 'failed' : 'completed'}`}>
+          {currentStepId === 'failed' || status === 'failed' ? (
+            <>
+              <strong>Run failed</strong>
+              {errorMessage && <p className="progress-tracker__summary-error">{errorMessage}</p>}
+            </>
+          ) : (
+            <>
+              <strong>Run completed</strong>
+              {websitesGenerated != null && totalBusinesses != null && (
+                <p className="progress-tracker__summary-count">
+                  Generated {websitesGenerated} of {totalBusinesses} website(s).
+                </p>
+              )}
+              {message && <p className="progress-tracker__summary-message">{message}</p>}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
-};
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    backgroundColor: 'white',
-    padding: '24px',
-    borderRadius: '8px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    marginBottom: '24px',
-  },
-  title: {
-    fontSize: '18px',
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: '16px',
-  },
-  statusBadge: {
-    fontSize: '14px',
-    color: '#666',
-    marginBottom: '16px',
-  },
-  statusValue: {
-    fontWeight: 'bold',
-    color: '#007bff',
-    textTransform: 'capitalize',
-  },
-  progressBar: {
-    width: '100%',
-    height: '8px',
-    backgroundColor: '#e9ecef',
-    borderRadius: '4px',
-    overflow: 'hidden',
-    marginBottom: '24px',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#007bff',
-    transition: 'width 0.3s ease',
-  },
-  steps: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '16px',
-  },
-  step: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '12px',
-    padding: '12px',
-    borderRadius: '4px',
-    backgroundColor: '#f8f9fa',
-  },
-  stepActive: {
-    backgroundColor: '#e7f3ff',
-    borderLeft: '3px solid #007bff',
-  },
-  stepCompleted: {
-    backgroundColor: '#f0f9f0',
-  },
-  stepIndicator: {
-    width: '32px',
-    height: '32px',
-    borderRadius: '50%',
-    backgroundColor: '#dee2e6',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontWeight: 'bold',
-    color: '#666',
-    flexShrink: 0,
-  },
-  stepContent: {
-    flex: 1,
-  },
-  stepLabel: {
-    fontWeight: '500',
-    color: '#333',
-    marginBottom: '4px',
-  },
-  stepDetails: {
-    fontSize: '12px',
-    color: '#666',
-    marginTop: '4px',
-  },
 };

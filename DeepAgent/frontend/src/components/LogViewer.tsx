@@ -1,12 +1,19 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { WebSocketMessage } from '../types';
+import { getStepLabel } from '../constants/pipelineSteps';
+
+type TabId = 'logs' | 'progress';
+const LOG_LEVELS = ['ALL', 'INFO', 'WARNING', 'ERROR', 'DEBUG'] as const;
 
 interface LogViewerProps {
   messages: WebSocketMessage[];
   filterLevel?: string;
 }
 
-export const LogViewer = ({ messages, filterLevel }: LogViewerProps) => {
+export const LogViewer = ({ messages, filterLevel: filterLevelProp }: LogViewerProps) => {
+  const [activeTab, setActiveTab] = useState<TabId>('logs');
+  const [levelFilter, setLevelFilter] = useState<string>(filterLevelProp ?? 'ALL');
+  const [collapsed, setCollapsed] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -28,49 +35,101 @@ export const LogViewer = ({ messages, filterLevel }: LogViewerProps) => {
     }
   };
 
-  const filteredMessages = filterLevel
-    ? messages.filter((msg) => msg.level?.toUpperCase() === filterLevel.toUpperCase())
-    : messages;
+  const logMessages = messages.filter((m) => m.type === 'log');
+  const progressMessages = messages.filter((m) => m.type === 'progress');
+
+  const logsFilteredByLevel =
+    levelFilter === 'ALL'
+      ? logMessages
+      : logMessages.filter((msg) => msg.level?.toUpperCase() === levelFilter);
+
+  const displayMessages = activeTab === 'logs' ? logsFilteredByLevel : progressMessages;
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h3 style={styles.title}>Real-Time Logs</h3>
-        {filterLevel && (
-          <span style={styles.filter}>Filter: {filterLevel}</span>
-        )}
+    <div className={`log-viewer ${collapsed ? 'log-viewer--collapsed' : ''}`}>
+      <div className="log-viewer__header">
+        <h3 className="log-viewer__title">Real-time activity</h3>
+        <div className="log-viewer__header-actions">
+          <div className="log-viewer__tabs">
+            <button
+              type="button"
+              className={`log-viewer__tab ${activeTab === 'logs' ? 'log-viewer__tab--active' : ''}`}
+              onClick={() => setActiveTab('logs')}
+            >
+              Logs
+            </button>
+            <button
+              type="button"
+              className={`log-viewer__tab ${activeTab === 'progress' ? 'log-viewer__tab--active' : ''}`}
+              onClick={() => setActiveTab('progress')}
+            >
+              Progress events
+            </button>
+          </div>
+          <button
+            type="button"
+            className="log-viewer__collapse-btn"
+            onClick={() => setCollapsed((c) => !c)}
+            title={collapsed ? 'Expand logs' : 'Collapse logs'}
+          >
+            {collapsed ? 'Expand' : 'Collapse'}
+          </button>
+        </div>
       </div>
-      <div style={styles.logContainer}>
-        {filteredMessages.length === 0 ? (
-          <div style={styles.empty}>No logs yet. Start a job to see logs here.</div>
+      {!collapsed && activeTab === 'logs' && (
+        <div className="log-viewer__level-filter">
+          <span className="log-viewer__level-label">Level:</span>
+          {LOG_LEVELS.map((level) => (
+            <button
+              key={level}
+              type="button"
+              className={`log-viewer__level-btn ${levelFilter === level ? 'log-viewer__level-btn--active' : ''}`}
+              onClick={() => setLevelFilter(level)}
+            >
+              {level}
+            </button>
+          ))}
+        </div>
+      )}
+      {!collapsed && (
+      <div className="log-viewer__content">
+        {displayMessages.length === 0 ? (
+          <div className="log-viewer__empty">
+            {activeTab === 'logs'
+              ? 'No logs yet. Start a job to see logs here.'
+              : 'No progress events yet.'}
+          </div>
         ) : (
-          filteredMessages.map((msg, idx) => (
-            <div key={idx} style={styles.logEntry}>
+          displayMessages.map((msg, idx) => (
+            <div key={idx} className="log-viewer__entry">
               {msg.type === 'log' && (
                 <>
-                  <span style={styles.timestamp}>
+                  <span className="log-viewer__timestamp">
                     {new Date(msg.timestamp).toLocaleTimeString()}
                   </span>
                   <span
-                    style={{
-                      ...styles.level,
-                      color: getLogColor(msg.level),
-                    }}
+                    className="log-viewer__level"
+                    style={{ color: getLogColor(msg.level) }}
                   >
                     {msg.level}
                   </span>
-                  <span style={styles.message}>{msg.message}</span>
+                  <span className="log-viewer__message">{msg.message}</span>
                 </>
               )}
               {msg.type === 'progress' && (
-                <div style={styles.progressEntry}>
-                  <span style={styles.timestamp}>
+                <div className="log-viewer__progress-entry">
+                  <span className="log-viewer__timestamp">
                     {new Date(msg.timestamp).toLocaleTimeString()}
                   </span>
-                  <span style={styles.progressStep}>{msg.step}</span>
-                  <span style={styles.progressValue}>
+                  <span className="log-viewer__progress-step">
+                    {getStepLabel(msg.step ?? '')}
+                  </span>
+                  <span className="log-viewer__progress-value">
                     {msg.progress?.toFixed(1)}%
                   </span>
+                  {msg.details?.message && (
+                    <span className="log-viewer__progress-detail">{msg.details.message}</span>
+                  )}
                 </div>
               )}
             </div>
@@ -78,82 +137,7 @@ export const LogViewer = ({ messages, filterLevel }: LogViewerProps) => {
         )}
         <div ref={logEndRef} />
       </div>
+      )}
     </div>
   );
-};
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    backgroundColor: 'white',
-    borderRadius: '8px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    display: 'flex',
-    flexDirection: 'column',
-    height: '400px',
-  },
-  header: {
-    padding: '16px',
-    borderBottom: '1px solid #eee',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: '18px',
-    fontWeight: '600',
-    color: '#333',
-    margin: 0,
-  },
-  filter: {
-    fontSize: '12px',
-    color: '#666',
-    padding: '4px 8px',
-    backgroundColor: '#f0f0f0',
-    borderRadius: '4px',
-  },
-  logContainer: {
-    flex: 1,
-    overflowY: 'auto',
-    padding: '16px',
-    fontFamily: 'monospace',
-    fontSize: '13px',
-    backgroundColor: '#1e1e1e',
-    color: '#d4d4d4',
-  },
-  logEntry: {
-    marginBottom: '8px',
-    lineHeight: '1.5',
-    wordBreak: 'break-word',
-  },
-  timestamp: {
-    color: '#858585',
-    marginRight: '8px',
-  },
-  level: {
-    fontWeight: 'bold',
-    marginRight: '8px',
-    textTransform: 'uppercase',
-  },
-  message: {
-    color: '#d4d4d4',
-  },
-  progressEntry: {
-    display: 'flex',
-    gap: '12px',
-    alignItems: 'center',
-    color: '#4ec9b0',
-  },
-  progressStep: {
-    fontWeight: '500',
-    textTransform: 'capitalize',
-  },
-  progressValue: {
-    fontWeight: 'bold',
-  },
-  empty: {
-    color: '#858585',
-    textAlign: 'center',
-    padding: '40px',
-    fontStyle: 'italic',
-  },
 };

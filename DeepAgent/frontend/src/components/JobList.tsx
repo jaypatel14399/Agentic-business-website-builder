@@ -3,18 +3,37 @@ import { JobResponse, JobStatus } from '../types';
 import { jobsApi } from '../api/client';
 
 interface JobListProps {
+  /** When provided, use this list (centralized from parent) instead of fetching */
+  jobs?: JobResponse[];
+  /** When provided, Refresh button and post-cancel refresh use this */
+  onRefresh?: () => void | Promise<void>;
   onJobSelect: (job: JobResponse) => void;
   selectedJobId?: string;
+  onJobCancel?: (jobId: string) => void;
 }
 
-export const JobList = ({ onJobSelect, selectedJobId }: JobListProps) => {
-  const [jobs, setJobs] = useState<JobResponse[]>([]);
-  const [loading, setLoading] = useState(true);
+export const JobList = ({
+  jobs: jobsProp,
+  onRefresh,
+  onJobSelect,
+  selectedJobId,
+  onJobCancel,
+}: JobListProps) => {
+  const [internalJobs, setInternalJobs] = useState<JobResponse[]>([]);
+  const [loading, setLoading] = useState(!jobsProp);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+
+  const useCentralized = jobsProp != null;
+  const jobs = useCentralized ? jobsProp : internalJobs;
 
   const loadJobs = async () => {
+    if (onRefresh) {
+      await onRefresh();
+      return;
+    }
     try {
       const jobList = await jobsApi.listJobs();
-      setJobs(jobList);
+      setInternalJobs(jobList);
     } catch (error) {
       console.error('Error loading jobs:', error);
     } finally {
@@ -23,10 +42,14 @@ export const JobList = ({ onJobSelect, selectedJobId }: JobListProps) => {
   };
 
   useEffect(() => {
+    if (useCentralized) {
+      setLoading(false);
+      return;
+    }
     loadJobs();
-    const interval = setInterval(loadJobs, 5000); // Refresh every 5 seconds
+    const interval = setInterval(loadJobs, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [useCentralized]);
 
   const getStatusColor = (status: JobStatus) => {
     switch (status) {
@@ -43,160 +66,91 @@ export const JobList = ({ onJobSelect, selectedJobId }: JobListProps) => {
     }
   };
 
-  if (loading) {
+  const handleCancel = async (e: React.MouseEvent, job: JobResponse) => {
+    e.stopPropagation();
+    if (job.status !== JobStatus.RUNNING && job.status !== JobStatus.PENDING) return;
+    setCancellingId(job.job_id);
+    try {
+      await jobsApi.cancelJob(job.job_id);
+      onJobCancel?.(job.job_id);
+      await loadJobs();
+    } catch (error) {
+      console.error('Error cancelling job:', error);
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
+  if (loading && !useCentralized) {
     return (
-      <div style={styles.container}>
-        <div style={styles.loading}>Loading jobs...</div>
+      <div className="job-list">
+        <div className="job-list__loading">Loading jobs...</div>
       </div>
     );
   }
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h3 style={styles.title}>Jobs</h3>
-        <button onClick={loadJobs} style={styles.refreshButton}>
+    <div className="job-list">
+      <div className="job-list__header">
+        <h3 className="job-list__title">Jobs</h3>
+        <button type="button" onClick={loadJobs} className="job-list__refresh-btn">
           Refresh
         </button>
       </div>
-      <div style={styles.list}>
+      <div className="job-list__list">
         {jobs.length === 0 ? (
-          <div style={styles.empty}>No jobs yet. Start a new job to begin.</div>
+          <div className="job-list__empty">No jobs yet. Start a new job to begin.</div>
         ) : (
-          jobs.map((job) => (
-            <div
-              key={job.job_id}
-              onClick={() => onJobSelect(job)}
-              style={{
-                ...styles.jobItem,
-                ...(selectedJobId === job.job_id ? styles.jobItemSelected : {}),
-              }}
-            >
-              <div style={styles.jobHeader}>
-                <span style={styles.jobId}>{job.job_id}</span>
-                <span
-                  style={{
-                    ...styles.statusBadge,
-                    backgroundColor: getStatusColor(job.status),
-                  }}
-                >
-                  {job.status}
-                </span>
-              </div>
-              <div style={styles.jobDetails}>
-                <div>
-                  {job.request.industry} in {job.request.city}, {job.request.state}
+          jobs.map((job) => {
+            const isRunning = job.status === JobStatus.RUNNING;
+            const canCancel = (job.status === JobStatus.RUNNING || job.status === JobStatus.PENDING) && !cancellingId;
+            return (
+              <div
+                key={job.job_id}
+                onClick={() => onJobSelect(job)}
+                className={`job-list__item ${selectedJobId === job.job_id ? 'job-list__item--selected' : ''} ${isRunning ? 'job-list__item--running' : ''}`}
+              >
+                <div className="job-list__item-header">
+                  <span className="job-list__job-id">{job.job_id}</span>
+                  <span
+                    className={`job-list__status-badge ${isRunning ? 'job-list__status-badge--running' : ''}`}
+                    style={{ backgroundColor: getStatusColor(job.status) }}
+                  >
+                    {isRunning && <span className="job-list__pulse" aria-hidden />}
+                    {job.status}
+                  </span>
                 </div>
-                <div style={styles.jobMeta}>
-                  Created: {new Date(job.created_at).toLocaleString()}
-                  {job.completed_at && (
-                    <> • Completed: {new Date(job.completed_at).toLocaleString()}</>
+                <div className="job-list__item-details">
+                  <div>
+                    {job.request.industry} in {job.request.city}, {job.request.state}
+                  </div>
+                  <div className="job-list__meta">
+                    Created: {new Date(job.created_at).toLocaleString()}
+                    {job.completed_at && (
+                      <> • Completed: {new Date(job.completed_at).toLocaleString()}</>
+                    )}
+                  </div>
+                  {job.generated_websites.length > 0 && (
+                    <div className="job-list__website-count">
+                      {job.generated_websites.length} website(s) generated
+                    </div>
                   )}
                 </div>
-                {job.generated_websites.length > 0 && (
-                  <div style={styles.websiteCount}>
-                    {job.generated_websites.length} website(s) generated
-                  </div>
+                {canCancel && (
+                  <button
+                    type="button"
+                    className="job-list__cancel-btn"
+                    onClick={(e) => handleCancel(e, job)}
+                    disabled={cancellingId === job.job_id}
+                  >
+                    {cancellingId === job.job_id ? 'Cancelling…' : 'Cancel'}
+                  </button>
                 )}
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>
   );
-};
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    backgroundColor: 'white',
-    borderRadius: '8px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    display: 'flex',
-    flexDirection: 'column',
-    maxHeight: '500px',
-  },
-  header: {
-    padding: '16px',
-    borderBottom: '1px solid #eee',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: '18px',
-    fontWeight: '600',
-    color: '#333',
-    margin: 0,
-  },
-  refreshButton: {
-    padding: '6px 12px',
-    backgroundColor: '#007bff',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '14px',
-  },
-  list: {
-    overflowY: 'auto',
-    padding: '8px',
-  },
-  jobItem: {
-    padding: '12px',
-    marginBottom: '8px',
-    borderRadius: '4px',
-    border: '1px solid #eee',
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-  },
-  jobItemSelected: {
-    borderColor: '#007bff',
-    backgroundColor: '#e7f3ff',
-  },
-  jobHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '8px',
-  },
-  jobId: {
-    fontFamily: 'monospace',
-    fontSize: '12px',
-    color: '#666',
-  },
-  statusBadge: {
-    padding: '4px 8px',
-    borderRadius: '4px',
-    color: 'white',
-    fontSize: '12px',
-    fontWeight: '500',
-    textTransform: 'capitalize',
-  },
-  jobDetails: {
-    fontSize: '14px',
-    color: '#333',
-  },
-  jobMeta: {
-    fontSize: '12px',
-    color: '#666',
-    marginTop: '4px',
-  },
-  websiteCount: {
-    fontSize: '12px',
-    color: '#28a745',
-    marginTop: '4px',
-    fontWeight: '500',
-  },
-  empty: {
-    padding: '40px',
-    textAlign: 'center',
-    color: '#666',
-    fontStyle: 'italic',
-  },
-  loading: {
-    padding: '40px',
-    textAlign: 'center',
-    color: '#666',
-  },
 };

@@ -2,6 +2,21 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import ReconnectingWebSocket from 'reconnecting-websocket';
 import { WebSocketMessage } from '../types';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+function getWebSocketBaseUrl(): string {
+  try {
+    const url = new URL(API_BASE_URL);
+    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    url.pathname = '';
+    url.search = '';
+    url.hash = '';
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return 'ws://localhost:8000';
+  }
+}
+
 interface UseWebSocketOptions {
   jobId: string | null;
   onMessage?: (message: WebSocketMessage) => void;
@@ -18,7 +33,7 @@ export const useWebSocket = ({ jobId, onMessage, enabled = true }: UseWebSocketO
       return;
     }
 
-    const wsUrl = `ws://localhost:8000/api/jobs/${jobId}/ws`;
+    const wsUrl = `${getWebSocketBaseUrl()}/api/jobs/${jobId}/ws`;
     const ws = new ReconnectingWebSocket(wsUrl, [], {
       connectionTimeout: 4000,
       maxRetries: 10,

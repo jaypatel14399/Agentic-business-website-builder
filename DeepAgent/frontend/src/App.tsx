@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { AgentPipelineView } from './components/AgentPipelineView';
 import { JobForm } from './components/JobForm';
 import { JobList } from './components/JobList';
 import { LogViewer } from './components/LogViewer';
@@ -13,20 +14,20 @@ function App() {
   const [logMessages, setLogMessages] = useState<WebSocketMessage[]>([]);
   const [jobs, setJobs] = useState<JobResponse[]>([]);
 
-  // Load jobs on mount
+  const loadJobs = useCallback(async () => {
+    try {
+      const jobList = await jobsApi.listJobs();
+      setJobs(jobList);
+    } catch (error) {
+      console.error('Error loading jobs:', error);
+    }
+  }, []);
+
   useEffect(() => {
-    const loadJobs = async () => {
-      try {
-        const jobList = await jobsApi.listJobs();
-        setJobs(jobList);
-      } catch (error) {
-        console.error('Error loading jobs:', error);
-      }
-    };
     loadJobs();
     const interval = setInterval(loadJobs, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [loadJobs]);
 
   // Update selected job periodically if it's running
   useEffect(() => {
@@ -90,20 +91,24 @@ function App() {
   };
 
   return (
-    <div style={styles.app}>
-      <header style={styles.header}>
-        <h1 style={styles.title}>Multi-Agent Business Website Generator</h1>
-        <p style={styles.subtitle}>
-          AI-powered website generation for local businesses
+    <div className="app">
+      <header className="app__header">
+        <h1 className="app__title">DeepAgent</h1>
+        <p className="app__subtitle">
+          Multi-agent business website generator — AI-powered sites for local businesses
         </p>
       </header>
 
-      <main style={styles.main}>
-        <div style={styles.leftColumn}>
+      <main className="app__main">
+        <div className="app__left">
           <JobForm onJobCreated={handleJobCreated} />
-          
+
           {selectedJob && (
             <>
+              <AgentPipelineView
+                progress={selectedJob.progress}
+                status={selectedJob.status}
+              />
               <ProgressTracker
                 progress={selectedJob.progress}
                 status={selectedJob.status}
@@ -116,98 +121,37 @@ function App() {
           )}
 
           {!selectedJob && (
-            <div style={styles.placeholder}>
+            <div className="app__placeholder">
               <p>Start a new job or select an existing job to view progress and logs.</p>
             </div>
           )}
         </div>
 
-        <div style={styles.rightColumn}>
+        <div className="app__right">
           <JobList
+            jobs={jobs}
+            onRefresh={loadJobs}
             onJobSelect={handleJobSelect}
             selectedJobId={selectedJob?.job_id}
+            onJobCancel={(jobId) => {
+              if (selectedJob?.job_id === jobId) setSelectedJob(null);
+            }}
           />
           <WebsiteList />
         </div>
       </main>
 
       {selectedJob && (
-        <div style={styles.connectionStatus}>
+        <div className="app__connection">
           {isConnected ? (
-            <span style={styles.connected}>● Connected</span>
+            <span className="app__connection--connected">● Connected</span>
           ) : (
-            <span style={styles.disconnected}>○ Disconnected</span>
+            <span className="app__connection--disconnected">○ Disconnected</span>
           )}
         </div>
       )}
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  app: {
-    minHeight: '100vh',
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    backgroundColor: 'white',
-    padding: '24px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    marginBottom: '24px',
-  },
-  title: {
-    fontSize: '32px',
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: '8px',
-  },
-  subtitle: {
-    fontSize: '16px',
-    color: '#666',
-    margin: 0,
-  },
-  main: {
-    maxWidth: '1400px',
-    margin: '0 auto',
-    padding: '0 24px 24px',
-    display: 'grid',
-    gridTemplateColumns: '1fr 400px',
-    gap: '24px',
-  },
-  leftColumn: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '24px',
-  },
-  rightColumn: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '24px',
-  },
-  placeholder: {
-    backgroundColor: 'white',
-    padding: '40px',
-    borderRadius: '8px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    textAlign: 'center',
-    color: '#666',
-  },
-  connectionStatus: {
-    position: 'fixed',
-    bottom: '20px',
-    right: '20px',
-    padding: '8px 16px',
-    backgroundColor: 'white',
-    borderRadius: '20px',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-    fontSize: '14px',
-  },
-  connected: {
-    color: '#28a745',
-  },
-  disconnected: {
-    color: '#dc3545',
-  },
-};
 
 export default App;

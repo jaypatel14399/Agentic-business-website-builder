@@ -24,158 +24,88 @@ export const JobForm = ({ onJobCreated }: JobFormProps) => {
     try {
       const job = await jobsApi.createJob(formData);
       onJobCreated(job);
-      // Reset form
       setFormData({
         industry: '',
         city: '',
         state: '',
         limit: undefined,
       });
-    } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || 'Failed to create job');
+    } catch (err: unknown) {
+      const message = err && typeof err === 'object' && 'response' in err
+        ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+        : null;
+      setError(typeof message === 'string' ? message : err instanceof Error ? err.message : 'Failed to create job');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div style={styles.container}>
-      <h2 style={styles.title}>Start Website Generation</h2>
-      <form onSubmit={handleSubmit} style={styles.form}>
-        <div style={styles.formGroup}>
-          <label style={styles.label}>
+    <div className="job-form">
+      <h2 className="job-form__title">Start website generation</h2>
+      <form onSubmit={handleSubmit} className="job-form__form">
+        <div className="job-form__group">
+          <label className="job-form__label">
             Industry *
             <input
               type="text"
+              className="job-form__input"
               value={formData.industry}
               onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
               placeholder="e.g., roofing, plumbing"
               required
-              style={styles.input}
             />
           </label>
         </div>
-
-        <div style={styles.formGroup}>
-          <label style={styles.label}>
+        <div className="job-form__group">
+          <label className="job-form__label">
             City *
             <input
               type="text"
+              className="job-form__input"
               value={formData.city}
               onChange={(e) => setFormData({ ...formData, city: e.target.value })}
               placeholder="e.g., Austin"
               required
-              style={styles.input}
             />
           </label>
         </div>
-
-        <div style={styles.formGroup}>
-          <label style={styles.label}>
+        <div className="job-form__group">
+          <label className="job-form__label">
             State *
             <input
               type="text"
+              className="job-form__input"
               value={formData.state}
               onChange={(e) => setFormData({ ...formData, state: e.target.value.toUpperCase() })}
               placeholder="e.g., TX"
               required
               maxLength={2}
-              style={styles.input}
             />
           </label>
         </div>
-
-        <div style={styles.formGroup}>
-          <label style={styles.label}>
+        <div className="job-form__group">
+          <label className="job-form__label">
             Limit (optional)
             <input
               type="number"
-              value={formData.limit || ''}
-              onChange={(e) => setFormData({ ...formData, limit: e.target.value ? parseInt(e.target.value) : undefined })}
+              className="job-form__input"
+              value={formData.limit ?? ''}
+              onChange={(e) => setFormData({ ...formData, limit: e.target.value ? parseInt(e.target.value, 10) : undefined })}
               placeholder="Number of businesses to process"
-              min="1"
-              style={styles.input}
+              min={1}
             />
           </label>
         </div>
-
-        {error && (
-          <div style={styles.error}>
-            {error}
-          </div>
-        )}
-
+        {error && <div className="job-form__error">{error}</div>}
         <button
           type="submit"
           disabled={isSubmitting}
-          style={isSubmitting ? { ...styles.button, ...styles.buttonDisabled } : styles.button}
+          className="job-form__button"
         >
-          {isSubmitting ? 'Starting...' : 'Start Generation'}
+          {isSubmitting ? 'Starting…' : 'Start generation'}
         </button>
       </form>
     </div>
   );
-};
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    backgroundColor: 'white',
-    padding: '24px',
-    borderRadius: '8px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    marginBottom: '24px',
-  },
-  title: {
-    fontSize: '24px',
-    fontWeight: 'bold',
-    marginBottom: '20px',
-    color: '#333',
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '16px',
-  },
-  formGroup: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-  },
-  label: {
-    fontSize: '14px',
-    fontWeight: '500',
-    color: '#555',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '4px',
-  },
-  input: {
-    padding: '10px',
-    border: '1px solid #ddd',
-    borderRadius: '4px',
-    fontSize: '14px',
-    fontFamily: 'inherit',
-  },
-  button: {
-    padding: '12px 24px',
-    backgroundColor: '#007bff',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    fontSize: '16px',
-    fontWeight: '500',
-    cursor: 'pointer',
-    marginTop: '8px',
-  },
-  buttonDisabled: {
-    backgroundColor: '#ccc',
-    cursor: 'not-allowed',
-  },
-  error: {
-    padding: '12px',
-    backgroundColor: '#fee',
-    color: '#c33',
-    borderRadius: '4px',
-    fontSize: '14px',
-  },
 };
