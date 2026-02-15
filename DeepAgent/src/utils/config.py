@@ -59,6 +59,9 @@ class Config:
         # Logging Settings
         self.log_level = os.getenv("LOG_LEVEL", "INFO").upper()
         
+        # Optional: Unsplash API for relevant stock images in generated sites
+        self.unsplash_access_key = os.getenv("UNSPLASH_ACCESS_KEY") or None
+        
         # Validate required configuration
         self._validate()
     

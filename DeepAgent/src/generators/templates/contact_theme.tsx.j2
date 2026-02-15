@@ -1,0 +1,20 @@
+import SEO from '@/components/SEO'
+import Footer from '@/components/Footer'
+import * as Theme from '@/theme/{{ theme_id }}'
+
+const content = {{ content_for_theme | tojson }};
+
+export const metadata = {
+  title: {{ ('Contact Us | ' ~ (content_for_theme.businessName | default(''))) | tojson }},
+  description: {{ ('Get in touch with ' ~ (content_for_theme.businessName | default('')) ~ '. Located in ' ~ (content_for_theme.city | default('')) ~ (', ' ~ content_for_theme.state if content_for_theme.state else '') ~ '.') | tojson }},
+};
+
+export default function ContactPage() {
+  return (
+    <>
+      <SEO />
+      <Theme.ContactPage content={content} />
+      <Footer />
+    </>
+  )
+}

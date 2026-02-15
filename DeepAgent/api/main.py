@@ -49,6 +49,38 @@ app.include_router(websites.router)
 app.include_router(discovery.router)
 
 
+def _serve_preview_file(site_id: str, path: str):
+    """Serve one file from generated_sites/{site_id}/out/{path}. Returns FileResponse or raises HTTPException."""
+    from pathlib import Path
+    from fastapi import HTTPException
+    from src.utils.config import get_config
+
+    base = get_config().get_output_path() / site_id / "out"
+    if not base.is_dir():
+        raise HTTPException(status_code=404, detail="Site not built. Run Build & Open first.")
+    full = (base / path).resolve() if path else base
+    if path:
+        if not str(full).startswith(str(base.resolve())):
+            raise HTTPException(status_code=404, detail="Not found")
+    if full.is_dir():
+        full = full / "index.html"
+    if not full.is_file():
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(full)
+
+
+@app.get("/api/preview/{site_id}")
+async def preview_site_root(site_id: str):
+    """Serve index.html for preview root."""
+    return _serve_preview_file(site_id, "")
+
+
+@app.get("/api/preview/{site_id}/{path:path}")
+async def preview_site(site_id: str, path: str):
+    """Serve built static files from generated_sites/{site_id}/out/{path}."""
+    return _serve_preview_file(site_id, path)
+
+
 @app.get("/api/health")
 async def health_check():
     """

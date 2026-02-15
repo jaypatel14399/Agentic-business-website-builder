@@ -19,6 +19,7 @@ from api.models.job import JobRequest, JobStatus, ProgressUpdate, WebsiteInfo
 from api.storage.job_storage import job_storage
 from api.websocket_manager import websocket_manager
 from api.logging_handler import WebSocketLoggingHandler
+from api.services.google_service import GoogleService
 
 logger = logging.getLogger(__name__)
 
@@ -92,8 +93,33 @@ def run_website_generation_task(job_id: str, request: JobRequest):
         business_list = request.businesses if request.businesses else ([request.business] if request.business else None)
         if business_list:
             logger.info(f"Using {len(business_list)} pre-discovered business(es) from discovery UI")
+            google_svc = None
+            try:
+                google_svc = GoogleService()
+            except Exception as e:
+                logger.warning("GoogleService not available for fetching reviews: %s", e)
             pre_discovered_businesses = []
             for b in business_list:
+                reviews_list = []
+                rating_from_place = b.rating
+                if google_svc and b.place_id:
+                    try:
+                        details = google_svc.get_place_details(b.place_id)
+                        if details:
+                            if rating_from_place is None and details.get("rating") is not None:
+                                rating_from_place = float(details["rating"])
+                            if details.get("reviews"):
+                                for r in details["reviews"][:10]:
+                                    rating_val = r.get("rating")
+                                    if rating_val is not None and rating_val >= 4:
+                                        reviews_list.append({
+                                            "text": r.get("text") or "",
+                                            "author_name": r.get("author_name") or "",
+                                            "rating": rating_val,
+                                            "time": r.get("time") or 0,
+                                        })
+                    except Exception as e:
+                        logger.warning("Could not fetch reviews for %s: %s", b.place_id, e)
                 business_obj = Business(
                     name=b.name,
                     address=b.address,
@@ -104,8 +130,8 @@ def run_website_generation_task(job_id: str, request: JobRequest):
                     website_url=b.website,
                     has_website=b.hasWebsite,
                     google_place_id=b.place_id,
-                    rating=b.rating,
-                    reviews=[],
+                    rating=rating_from_place,
+                    reviews=reviews_list,
                     latitude=None,
                     longitude=None,
                 )

@@ -3,6 +3,7 @@ import { DiscoveredBusiness, DiscoveryRequest } from '../types';
 import { MapContainer } from './MapContainer';
 import { BusinessListPanel } from './BusinessListPanel';
 import { BusinessDetailDrawer } from './BusinessDetailDrawer';
+import { ConfirmDialog } from './ConfirmDialog';
 import { discoveryApi } from '../api/client';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -27,6 +28,8 @@ export const DiscoverySection = ({
   const [mode, setMode] = useState<Mode>('manual');
   const [hoveredBusinessId, setHoveredBusinessId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pendingGenerate, setPendingGenerate] = useState<DiscoveredBusiness[] | null>(null);
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
 
   // Load businesses on mount
   useEffect(() => {
@@ -38,24 +41,14 @@ export const DiscoverySection = ({
         
         // Auto-select first N businesses WITHOUT websites if in auto mode
         if (mode === 'auto' && data.length > 0) {
-          // Filter businesses that don't have websites
           const businessesWithoutWebsites = data.filter(b => !b.hasWebsite);
-          
           if (businessesWithoutWebsites.length > 0) {
             const limit = discoveryRequest.limit || 5;
             const autoSelected = businessesWithoutWebsites.slice(0, limit);
             setSelectedBusinesses(autoSelected.map(b => b.id));
-            
-            // Show confirmation modal
-            const confirmed = window.confirm(
-              `Generate websites for ${autoSelected.length} businesses without websites?`
-            );
-            if (confirmed) {
-              onGenerateForBusinesses(autoSelected);
-            }
+            setPendingGenerate(autoSelected);
           } else {
-            // No businesses without websites found
-            window.alert('No businesses without websites found. All discovered businesses already have websites.');
+            setAlertMessage('No businesses without websites found. All discovered businesses already have websites.');
           }
         }
       } catch (error) {
@@ -71,23 +64,14 @@ export const DiscoverySection = ({
   // Handle mode change - auto-select when switching to auto mode
   useEffect(() => {
     if (mode === 'auto' && businesses.length > 0 && selectedBusinesses.length === 0) {
-      // Filter businesses that don't have websites
       const businessesWithoutWebsites = businesses.filter(b => !b.hasWebsite);
-      
       if (businessesWithoutWebsites.length > 0) {
         const limit = discoveryRequest.limit || 5;
         const autoSelected = businessesWithoutWebsites.slice(0, limit);
         setSelectedBusinesses(autoSelected.map(b => b.id));
-        
-        const confirmed = window.confirm(
-          `Generate websites for ${autoSelected.length} businesses without websites?`
-        );
-        if (confirmed) {
-          onGenerateForBusinesses(autoSelected);
-        }
+        setPendingGenerate(autoSelected);
       } else {
-        // No businesses without websites found
-        window.alert('No businesses without websites found. All discovered businesses already have websites.');
+        setAlertMessage('No businesses without websites found. All discovered businesses already have websites.');
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -178,6 +162,33 @@ export const DiscoverySection = ({
         onClose={() => setIsDrawerOpen(false)}
         onGenerateWebsite={handleGenerateWebsite}
         onAddToBatch={handleAddToBatch}
+      />
+
+      <ConfirmDialog
+        open={pendingGenerate !== null}
+        title="Generate websites"
+        message={
+          pendingGenerate
+            ? `Generate websites for ${pendingGenerate.length} businesses without websites?`
+            : ''
+        }
+        confirmLabel="OK"
+        cancelLabel="Cancel"
+        onConfirm={() => {
+          if (pendingGenerate) onGenerateForBusinesses(pendingGenerate);
+          setPendingGenerate(null);
+        }}
+        onCancel={() => setPendingGenerate(null)}
+      />
+
+      <ConfirmDialog
+        open={alertMessage !== null}
+        title="Notice"
+        message={alertMessage || ''}
+        confirmLabel="OK"
+        cancelLabel=""
+        onConfirm={() => setAlertMessage(null)}
+        onCancel={() => setAlertMessage(null)}
       />
     </div>
   );

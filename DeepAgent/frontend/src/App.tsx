@@ -1,4 +1,16 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+
+const ACTIVE_VIEW_KEY = 'deepagent_activeView';
+const SELECTED_JOB_ID_KEY = 'deepagent_selectedJobId';
+const VALID_VIEWS = ['dashboard', 'jobs', 'websites', 'logs', 'settings'] as const;
+
+function getStoredActiveView(): 'dashboard' | 'jobs' | 'websites' | 'logs' | 'settings' {
+  try {
+    const s = sessionStorage.getItem(ACTIVE_VIEW_KEY);
+    if (s && VALID_VIEWS.includes(s as any)) return s as typeof VALID_VIEWS[number];
+  } catch (_) {}
+  return 'dashboard';
+}
 import { AgentPipelineView } from './components/AgentPipelineView';
 import { JobForm } from './components/JobForm';
 import { JobList } from './components/JobList';
@@ -11,9 +23,10 @@ import { DiscoverySection } from './components/DiscoverySection';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useTheme } from './contexts/ThemeContext';
 import { JobResponse, WebSocketMessage, JobStatus, DiscoveryRequest } from './types';
-import { jobsApi } from './api/client';
-import { websitesApi } from './api/client';
+import { jobsApi, websitesApi } from './api/client';
 import { discoveryApi } from './api/client';
+import { ConfirmDialog } from './components/ConfirmDialog';
+import { stripAnsi } from './utils/stripAnsi';
 
 function App() {
   const { theme } = useTheme();
@@ -22,14 +35,33 @@ function App() {
   const [allLogs, setAllLogs] = useState<Map<string, WebSocketMessage[]>>(new Map());
   const [jobs, setJobs] = useState<JobResponse[]>([]);
   const [websites, setWebsites] = useState<any[]>([]);
-  const [activeView, setActiveView] = useState<'dashboard' | 'jobs' | 'websites' | 'logs' | 'settings'>('dashboard');
+  const [activeView, setActiveViewState] = useState<'dashboard' | 'jobs' | 'websites' | 'logs' | 'settings'>(getStoredActiveView);
+  const setActiveView = useCallback((view: 'dashboard' | 'jobs' | 'websites' | 'logs' | 'settings') => {
+    setActiveViewState(view);
+    try {
+      sessionStorage.setItem(ACTIVE_VIEW_KEY, view);
+    } catch (_) {}
+  }, []);
   const [isDiscoveryMode, setIsDiscoveryMode] = useState(false);
   const [discoveryRequest, setDiscoveryRequest] = useState<DiscoveryRequest | null>(null);
+  const [buildError, setBuildError] = useState<string | null>(null);
+  const [buildOpenSiteId, setBuildOpenSiteId] = useState<string | null>(null);
+  const hasRestoredJobRef = useRef(false);
 
   const loadJobs = useCallback(async () => {
     try {
       const jobList = await jobsApi.listJobs();
       setJobs(jobList);
+      if (!hasRestoredJobRef.current) {
+        hasRestoredJobRef.current = true;
+        try {
+          const storedId = sessionStorage.getItem(SELECTED_JOB_ID_KEY);
+          if (storedId && jobList.some((j) => j.job_id === storedId)) {
+            const job = jobList.find((j) => j.job_id === storedId)!;
+            setSelectedJob(job);
+          }
+        } catch (_) {}
+      }
     } catch (error) {
       console.error('Error loading jobs:', error);
     }
@@ -43,6 +75,13 @@ function App() {
       console.error('Error loading websites:', error);
     }
   }, []);
+
+  useEffect(() => {
+    try {
+      if (selectedJob) sessionStorage.setItem(SELECTED_JOB_ID_KEY, selectedJob.job_id);
+      else sessionStorage.removeItem(SELECTED_JOB_ID_KEY);
+    } catch (_) {}
+  }, [selectedJob]);
 
   useEffect(() => {
     loadJobs();
@@ -95,18 +134,30 @@ function App() {
 
     // Update progress if it's a progress message
     if (message.type === 'progress' && selectedJob) {
+      const step = message.step || '';
+      const isCompleted = step === 'completed';
       setSelectedJob((prev) => {
         if (!prev) return prev;
         return {
           ...prev,
           progress: {
-            step: message.step || '',
-            progress: message.progress || 0,
+            step,
+            progress: message.progress ?? 100,
             details: message.details || {},
             timestamp: message.timestamp,
           },
+          ...(isCompleted ? { status: JobStatus.COMPLETED } : {}),
         };
       });
+      // Refetch job when completed so we get generated_websites and final state
+      if (isCompleted && selectedJob?.job_id) {
+        jobsApi.getJob(selectedJob.job_id).then((updated) => {
+          setSelectedJob(updated);
+          setJobs((prev) =>
+            prev.map((j) => (j.job_id === updated.job_id ? updated : j))
+          );
+        }).catch((err) => console.error('Failed to refetch job:', err));
+      }
     }
   }, [selectedJob]);
 
@@ -296,6 +347,76 @@ function App() {
                   progress={selectedJob.progress}
                   status={selectedJob.status}
                 />
+                {/* Generated websites (when job completed) */}
+                {selectedJob.status === JobStatus.COMPLETED && selectedJob.generated_websites?.length > 0 && (
+                  <div className={`rounded-xl border p-6 transition-colors duration-200 ${theme === 'dark' ? 'bg-[#111827] border-[#1F2937]' : 'bg-white border-gray-200'}`}>
+                    <h3 className={`text-lg font-semibold mb-4 ${theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>
+                      Generated Websites ({selectedJob.generated_websites.length})
+                    </h3>
+                    <div className="space-y-4">
+                      {selectedJob.generated_websites.map((site) => (
+                        <div
+                          key={site.site_id}
+                          className={`p-4 rounded-lg border ${theme === 'dark' ? 'bg-[#0B1220] border-[#1F2937]' : 'bg-gray-50 border-gray-200'}`}
+                        >
+                          <div className="flex justify-between items-start gap-4 flex-wrap">
+                            <div className="min-w-0 flex-1">
+                              <h4 className={`font-medium ${theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>
+                                {site.business_name}
+                              </h4>
+                              <p className={`font-mono text-xs mt-1 break-all ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>
+                                {site.path}
+                              </p>
+                              <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>
+                                Created: {new Date(site.created_at).toLocaleString()}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2 shrink-0">
+                              <button
+                                type="button"
+                                className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white rounded-lg text-xs font-medium transition-colors"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(site.path);
+                                  alert('Path copied to clipboard');
+                                }}
+                              >
+                                Copy path
+                              </button>
+                              <button
+                                type="button"
+                                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                                disabled={buildOpenSiteId !== null}
+                                onClick={async (e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setBuildOpenSiteId(site.site_id);
+                                  try {
+                                    const { url } = await websitesApi.buildAndOpen(site.site_id);
+                                    window.open(url, '_blank', 'noopener');
+                                  } catch (err: any) {
+                                    const msg = err?.response?.data?.detail || err?.message || 'Failed to start dev server';
+                                    setBuildError(stripAnsi(typeof msg === 'string' ? msg : JSON.stringify(msg)));
+                                  } finally {
+                                    setBuildOpenSiteId(null);
+                                  }
+                                }}
+                              >
+                                {buildOpenSiteId === site.site_id ? (
+                                  <>
+                                    <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                    Starting…
+                                  </>
+                                ) : (
+                                  'Build & Open'
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -313,6 +434,19 @@ function App() {
 
   return (
     <div className={`min-h-screen ${bgClass} flex transition-colors duration-200`}>
+      {buildOpenSiteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className={`rounded-xl shadow-xl p-6 max-w-sm mx-4 flex flex-col items-center gap-4 ${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
+            <span className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+            <p className={`font-medium text-center ${theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>
+              Installing dependencies and starting dev server…
+            </p>
+            <p className={`text-sm text-center ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+              The site will open in a new tab when ready.
+            </p>
+          </div>
+        </div>
+      )}
       <Sidebar activeView={activeView} onViewChange={setActiveView} />
       <div className="flex-1 ml-[240px]">
         <main className="p-8">
@@ -320,6 +454,15 @@ function App() {
         </main>
       </div>
 
+      <ConfirmDialog
+        open={buildError !== null}
+        title="Build & Open Error"
+        message={buildError || ''}
+        confirmLabel="OK"
+        cancelLabel=""
+        onConfirm={() => setBuildError(null)}
+        onCancel={() => setBuildError(null)}
+      />
     </div>
   );
 }
