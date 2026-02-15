@@ -1,76 +1,172 @@
-import { ProgressUpdate } from '../types';
-import {
-  PIPELINE_STEPS,
-  PIPELINE_STRIP_IDS,
-  getStepLabel,
-  isStepActive,
-  isStepCompleted,
-} from '../constants/pipelineSteps';
+import { useEffect, useState } from 'react';
+import { TimelineStepper } from './TimelineStepper';
+import { JobResponse } from '../types';
+import { jobsApi } from '../api/client';
 
 interface AgentPipelineViewProps {
-  progress?: ProgressUpdate | null;
-  status: string;
+  jobId: string;
+  initialJob?: JobResponse;
 }
 
-export const AgentPipelineView = ({ progress, status }: AgentPipelineViewProps) => {
-  const currentStepId = progress?.step ?? '';
-  const details = progress?.details ?? {};
-  const businessName = details.business_name as string | undefined;
-  const message = details.message as string | undefined;
-  const businessIndex = details.business_index as number | undefined;
-  const totalBusinesses = details.total_businesses as number | undefined;
-  const isFailed = currentStepId === 'failed' || status === 'failed';
+export interface PipelineStage {
+  id: string;
+  label: string;
+  status: 'completed' | 'running' | 'pending' | 'failed';
+  order: number;
+}
 
-  const stripSteps = PIPELINE_STEPS.filter((s) =>
-    (PIPELINE_STRIP_IDS as readonly string[]).includes(s.id)
-  );
+// Helper function to derive stages (defined outside component to avoid dependency issues)
+const deriveStages = (jobData: JobResponse | null): { stages: PipelineStage[]; currentStage: string } => {
+    if (!jobData) {
+      return { stages: [], currentStage: '' };
+    }
 
-  return (
-    <div className="agent-pipeline">
-      <h3 className="agent-pipeline__title">Agent pipeline</h3>
-      <div className="agent-pipeline__strip" role="list">
-        {stripSteps.map((step, idx) => {
-          const active = isStepActive(currentStepId, step.id);
-          const completed = isStepCompleted(currentStepId, step.id);
-          const failed = step.id === 'failed' && (active || isFailed);
-          const state = failed ? 'failed' : completed ? 'completed' : active ? 'active' : 'pending';
-          if (step.id === 'failed' && !isFailed && !active) return null;
-          return (
-            <div
-              key={step.id}
-              className={`agent-pipeline__node agent-pipeline__node--${state}`}
-              role="listitem"
-            >
-              <div className="agent-pipeline__node-indicator">
-                {completed && step.id !== 'failed' ? (
-                  <span className="agent-pipeline__check">✓</span>
-                ) : (
-                  <span className="agent-pipeline__num">{idx + 1}</span>
-                )}
-              </div>
-              <span className="agent-pipeline__node-label">{getStepLabel(step.id)}</span>
-              {idx < stripSteps.length - 1 && (
-                <span className="agent-pipeline__connector" aria-hidden />
-              )}
-            </div>
-          );
-        })}
-      </div>
-      {(businessName || message) && (
-        <div className="agent-pipeline__detail">
-          {businessIndex != null && totalBusinesses != null && (
-            <span className="agent-pipeline__business-index">
-              Business {businessIndex}/{totalBusinesses}
-            </span>
-          )}
-          {businessName && (
-            <span className="agent-pipeline__business-name">{businessName}</span>
-          )}
-          {message && (
-            <span className="agent-pipeline__message">{message}</span>
-          )}
-        </div>
-      )}
-    </div>
-  );
+    const allStages: PipelineStage[] = [
+      { id: 'discovering_businesses', label: 'Discover businesses', order: 1, status: 'pending' },
+      { id: 'detecting_websites', label: 'Detect websites', order: 2, status: 'pending' },
+      { id: 'filtering_businesses', label: 'Filter (no website)', order: 3, status: 'pending' },
+      { id: 'processing_business', label: 'Process business', order: 4, status: 'pending' },
+      { id: 'finding_competitors', label: 'Find competitors', order: 5, status: 'pending' },
+      { id: 'analyzing_competitors', label: 'Analyze competitors', order: 6, status: 'pending' },
+      { id: 'generating_content', label: 'Generate content', order: 7, status: 'pending' },
+      { id: 'generating_site', label: 'Generate Next.js site', order: 8, status: 'pending' },
+      { id: 'completed', label: 'Completed', order: 9, status: 'pending' },
+    ];
+
+    const currentStepId = jobData.progress?.step || '';
+    const jobStatus = jobData.status;
+    let currentStageId = currentStepId || '';
+
+    // Determine current stage based on job status
+    if (jobStatus === 'completed') {
+      currentStageId = 'completed';
+    } else if (jobStatus === 'failed') {
+      currentStageId = 'failed';
+    } else if (jobStatus === 'running' && currentStepId) {
+      currentStageId = currentStepId;
+    } else if (jobStatus === 'pending') {
+      currentStageId = 'discovering_businesses'; // First stage
+    }
+
+    // Find current stage order
+    const currentStageObj = allStages.find(s => s.id === currentStageId);
+    const currentOrder = currentStageObj?.order || 0;
+
+    // Map stages based on current step and job status
+    const updatedStages = allStages.map((stage) => {
+      const stageOrder = stage.order;
+
+      // Job failed
+      if (jobStatus === 'failed') {
+        // Mark current stage (where failure occurred) as failed if it's not completed stage
+        if (stage.id === currentStageId && currentStageId !== 'completed') {
+          return { ...stage, status: 'failed' as const };
+        }
+        // Mark stages before failure as completed
+        if (stageOrder < currentOrder) {
+          return { ...stage, status: 'completed' as const };
+        }
+        // Mark stages after failure as pending
+        return { ...stage, status: 'pending' as const };
+      }
+
+      // Job completed
+      if (jobStatus === 'completed') {
+        if (stage.id === 'completed') {
+          return { ...stage, status: 'completed' as const };
+        }
+        // All stages before completed are completed
+        if (stageOrder < currentOrder) {
+          return { ...stage, status: 'completed' as const };
+        }
+        return { ...stage, status: 'pending' as const };
+      }
+
+      // Job running
+      if (stage.id === currentStageId) {
+        return { ...stage, status: 'running' as const };
+      }
+      // Stages before current are completed
+      if (stageOrder < currentOrder) {
+        return { ...stage, status: 'completed' as const };
+      }
+      // Stages after current are pending
+      return { ...stage, status: 'pending' as const };
+    });
+
+    // Add failed stage if job failed
+    if (jobStatus === 'failed') {
+      updatedStages.push({
+        id: 'failed',
+        label: 'Failed',
+        order: 10,
+        status: 'failed',
+      });
+    }
+
+    return { stages: updatedStages, currentStage: currentStageId };
+};
+
+export const AgentPipelineView = ({ jobId, initialJob }: AgentPipelineViewProps) => {
+  const [job, setJob] = useState<JobResponse | null>(initialJob || null);
+  
+  // Initialize stages from initial job
+  const initialStages = deriveStages(initialJob || null);
+  const [stages, setStages] = useState<PipelineStage[]>(initialStages.stages);
+  const [currentStage, setCurrentStage] = useState<string>(initialStages.currentStage);
+
+  // Poll job status
+  useEffect(() => {
+    if (!jobId) return;
+
+    let intervalId: NodeJS.Timeout | null = null;
+    let isPolling = true;
+
+    const pollJob = async () => {
+      if (!isPolling) return;
+
+      try {
+        const jobData = await jobsApi.getJob(jobId);
+        setJob(jobData);
+
+        const { stages: derivedStages, currentStage: derivedCurrentStage } = deriveStages(jobData);
+        setStages(derivedStages);
+        setCurrentStage(derivedCurrentStage);
+
+        // Stop polling if job is completed or failed
+        if (jobData.status === 'completed' || jobData.status === 'failed' || jobData.status === 'cancelled') {
+          isPolling = false;
+          if (intervalId) {
+            clearInterval(intervalId);
+            intervalId = null;
+          }
+        }
+      } catch (error) {
+        console.error('Error polling job status:', error);
+      }
+    };
+
+    // Initial poll
+    pollJob();
+
+    // Set up polling interval (every 2 seconds)
+    intervalId = setInterval(pollJob, 2000);
+
+    // Cleanup on unmount
+    return () => {
+      isPolling = false;
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [jobId]);
+
+  // Update stages when job changes
+  useEffect(() => {
+    const { stages: derivedStages, currentStage: derivedCurrentStage } = deriveStages(job);
+    setStages(derivedStages);
+    setCurrentStage(derivedCurrentStage);
+  }, [job]);
+
+  return <TimelineStepper stages={stages} currentStage={currentStage} jobStatus={job?.status || 'pending'} />;
 };

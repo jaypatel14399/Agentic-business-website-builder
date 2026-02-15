@@ -1,6 +1,7 @@
 """Google Places API service for business discovery."""
 
 import logging
+import re
 import time
 from typing import List, Optional, Dict, Any
 import googlemaps
@@ -11,6 +12,24 @@ from src.utils.config import Config
 
 
 logger = logging.getLogger(__name__)
+
+
+# URL patterns that indicate a Google Business Profile link (listing page), not a real business website
+GOOGLE_BUSINESS_PROFILE_PATTERNS = [
+    r'https?://(www\.)?google\.com/maps/place/',
+    r'https?://maps\.google\.com/',
+    r'https?://g\.page/',
+    r'https?://.*google\.com/maps',
+    r'https?://.*google\.com/business',
+]
+
+
+def _is_google_business_profile_url(url: Optional[str]) -> bool:
+    """Return True if url is a Google Business Profile link, not a real business website."""
+    if not url or not url.strip():
+        return False
+    url_lower = url.lower().strip()
+    return any(re.search(p, url_lower) for p in GOOGLE_BUSINESS_PROFILE_PATTERNS)
 
 
 class GooglePlacesService:
@@ -172,8 +191,18 @@ class GooglePlacesService:
                 None
             )
             
-            # Extract website URL
+            # Extract website URL from Google Business (Place Details)
             website_url = merged_place.get('website')
+            if isinstance(website_url, str):
+                website_url = website_url.strip() or None
+            else:
+                website_url = None
+            
+            # Check whether Google Business lists a real website (not just a profile/maps link)
+            has_website = bool(
+                website_url
+                and not _is_google_business_profile_url(website_url)
+            )
             
             # Extract rating
             rating = merged_place.get('rating')
@@ -220,7 +249,7 @@ class GooglePlacesService:
             else:
                 reviews = []
             
-            # Create Business object
+            # Create Business object (has_website from Google Business listing; detection agent may re-validate)
             business = Business(
                 name=name,
                 address=address,
@@ -229,7 +258,7 @@ class GooglePlacesService:
                 city=city,
                 state=state,
                 website_url=website_url,
-                has_website=False,  # Will be determined by Website Detection Agent later
+                has_website=has_website,
                 google_place_id=place_id,
                 rating=rating,
                 reviews=reviews,

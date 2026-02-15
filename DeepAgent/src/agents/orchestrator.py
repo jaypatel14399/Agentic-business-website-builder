@@ -64,7 +64,8 @@ class OrchestratorAgent:
         city: str,
         state: str,
         limit: Optional[int] = None,
-        progress_callback: Optional[Callable[[str, float, Dict[str, Any]], None]] = None
+        progress_callback: Optional[Callable[[str, float, Dict[str, Any]], None]] = None,
+        pre_discovered_businesses: Optional[List[Business]] = None
     ) -> List[Path]:
         """
         Main entry point for generating websites for businesses without websites.
@@ -97,48 +98,64 @@ class OrchestratorAgent:
         generated_paths = []
         
         try:
-            # Step 1: Business Discovery
-            if progress_callback:
-                progress_callback("discovering_businesses", 5.0, {"message": "Discovering businesses..."})
-            logger.info("Step 1: Discovering businesses...")
-            businesses = self.business_discovery_agent.discover_businesses(
-                industry=industry,
-                city=city,
-                state=state
-            )
-            
-            if not businesses:
-                logger.warning("No businesses found. Exiting workflow.")
+            # Step 1: Business Discovery (skip if pre-discovered businesses provided)
+            if pre_discovered_businesses:
+                logger.info("Using pre-discovered businesses, skipping discovery step")
+                businesses = pre_discovered_businesses
                 if progress_callback:
-                    progress_callback("completed", 100.0, {"message": "No businesses found"})
-                return generated_paths
+                    progress_callback("discovering_businesses", 20.0, {
+                        "businesses_found": len(businesses),
+                        "message": "Using pre-discovered businesses"
+                    })
+            else:
+                if progress_callback:
+                    progress_callback("discovering_businesses", 5.0, {"message": "Discovering businesses..."})
+                logger.info("Step 1: Discovering businesses...")
+                businesses = self.business_discovery_agent.discover_businesses(
+                    industry=industry,
+                    city=city,
+                    state=state
+                )
+                
+                if not businesses:
+                    logger.warning("No businesses found. Exiting workflow.")
+                    if progress_callback:
+                        progress_callback("completed", 100.0, {"message": "No businesses found"})
+                    return generated_paths
+                
+                logger.info(f"Discovered {len(businesses)} businesses")
+                if progress_callback:
+                    progress_callback("discovering_businesses", 20.0, {"businesses_found": len(businesses)})
             
-            logger.info(f"Discovered {len(businesses)} businesses")
-            if progress_callback:
-                progress_callback("discovering_businesses", 20.0, {"businesses_found": len(businesses)})
-            
-            # Step 2: Website Detection
-            if progress_callback:
-                progress_callback("detecting_websites", 25.0, {"message": "Detecting existing websites..."})
-            logger.info("Step 2: Detecting websites for businesses...")
-            businesses_with_website_status = self.website_detection_agent.detect_websites(
-                businesses
-            )
-            
-            # Count how many have websites
-            businesses_with_websites = [
-                b for b in businesses_with_website_status if b.has_website
-            ]
-            logger.info(
-                f"Website detection completed: "
-                f"{len(businesses_with_websites)}/{len(businesses_with_website_status)} "
-                f"businesses have websites"
-            )
-            if progress_callback:
-                progress_callback("detecting_websites", 35.0, {
-                    "businesses_with_websites": len(businesses_with_websites),
-                    "total_businesses": len(businesses_with_website_status)
-                })
+            # Step 2: Website Detection (skip when using pre-discovered from UI; trust their has_website)
+            if pre_discovered_businesses:
+                logger.info("Skipping website detection; using has_website from discovery UI")
+                businesses_with_website_status = businesses
+                if progress_callback:
+                    progress_callback("detecting_websites", 35.0, {
+                        "message": "Using website status from discovery",
+                        "total_businesses": len(businesses_with_website_status)
+                    })
+            else:
+                if progress_callback:
+                    progress_callback("detecting_websites", 25.0, {"message": "Detecting existing websites..."})
+                logger.info("Step 2: Detecting websites for businesses...")
+                businesses_with_website_status = self.website_detection_agent.detect_websites(
+                    businesses
+                )
+                businesses_with_websites = [
+                    b for b in businesses_with_website_status if b.has_website
+                ]
+                logger.info(
+                    f"Website detection completed: "
+                    f"{len(businesses_with_websites)}/{len(businesses_with_website_status)} "
+                    f"businesses have websites"
+                )
+                if progress_callback:
+                    progress_callback("detecting_websites", 35.0, {
+                        "businesses_with_websites": len(businesses_with_websites),
+                        "total_businesses": len(businesses_with_website_status)
+                    })
             
             # Step 3: Filter Businesses Without Websites
             if progress_callback:

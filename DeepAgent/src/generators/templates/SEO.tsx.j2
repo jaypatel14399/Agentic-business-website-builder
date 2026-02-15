@@ -28,9 +28,10 @@ export default function SEO() {
   return (
     <>
       {/* Structured Data for Local Business */}
-      <script type="application/ld+json">
-        {JSON.stringify(structuredData)}
-      </script>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
     </>
   )
 }

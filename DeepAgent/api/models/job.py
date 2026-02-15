@@ -17,12 +17,26 @@ class JobStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class BusinessObject(BaseModel):
+    """Business object from discovery."""
+    place_id: str = Field(..., description="Google Place ID")
+    name: str = Field(..., description="Business name")
+    address: str = Field(..., description="Business address")
+    phone: Optional[str] = Field(None, description="Business phone number")
+    rating: Optional[float] = Field(None, description="Business rating")
+    reviews: Optional[int] = Field(None, description="Number of reviews")
+    website: Optional[str] = Field(None, description="Business website URL")
+    hasWebsite: bool = Field(..., description="Whether business has a website")
+
+
 class JobRequest(BaseModel):
     """Request model for starting a new job."""
     industry: str = Field(..., description="Industry keyword (e.g., 'roofing', 'plumbing')")
     city: str = Field(..., description="City name (e.g., 'Austin')")
     state: str = Field(..., description="State abbreviation (e.g., 'TX')")
     limit: Optional[int] = Field(None, description="Limit number of businesses to process")
+    business: Optional[BusinessObject] = Field(None, description="Optional single pre-discovered business (legacy)")
+    businesses: Optional[List[BusinessObject]] = Field(None, description="Optional list of pre-discovered businesses from discovery UI")
     
     class Config:
         json_schema_extra = {
