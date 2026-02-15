@@ -117,7 +117,8 @@ class GoogleService:
                     'rating',
                     'user_ratings_total',
                     'geometry',
-                    'place_id'
+                    'place_id',
+                    'reviews'
                 ]
             )
             

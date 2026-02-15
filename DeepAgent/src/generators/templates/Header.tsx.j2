@@ -2,50 +2,55 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import DarkModeToggle from './DarkModeToggle'
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   return (
-    <header className="bg-white shadow-md sticky top-0 z-50">
+    <header className="bg-[var(--theme-background,var(--color-background))]/95 backdrop-blur-sm shadow-md sticky top-0 z-50 border-b border-[var(--theme-border,var(--color-border,rgba(0,0,0,0.1)))]">
       <nav className="container mx-auto max-w-6xl px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo/Brand */}
-          <Link href="/" className="text-2xl font-bold text-primary-600 hover:text-primary-700">
+          <Link href="/" className="font-heading text-2xl font-bold text-[var(--theme-text,var(--color-primary))] hover:opacity-80 transition-colors">
             {{ business.name }}
           </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-8">
+          <div className="hidden md:flex items-center space-x-6">
+            <DarkModeToggle />
             <Link
               href="/"
-              className="text-gray-700 hover:text-primary-600 font-medium transition-colors"
+              className="text-[var(--theme-text,var(--color-text))] hover:opacity-80 font-medium transition-colors"
             >
               Home
             </Link>
             <Link
               href="/about"
-              className="text-gray-700 hover:text-primary-600 font-medium transition-colors"
+              className="text-[var(--theme-text,var(--color-text))] hover:opacity-80 font-medium transition-colors"
             >
               About
             </Link>
             <Link
-              href="/services"
-              className="text-gray-700 hover:text-primary-600 font-medium transition-colors"
+              href="/#services"
+              className="text-[var(--theme-text,var(--color-text))] hover:opacity-80 font-medium transition-colors"
             >
               Services
             </Link>
             <Link
               href="/contact"
-              className="bg-primary-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-primary-700 transition-colors"
+              className="bg-[var(--theme-primary,var(--color-primary))] text-[var(--theme-onPrimary,#fff)] px-6 py-2.5 rounded-xl font-medium hover:opacity-90 transition-all duration-300"
             >
               Contact
             </Link>
           </div>
 
-          {/* Mobile Menu Button */}
+          {/* Mobile: Dark mode + Menu Button */}
+          <div className="flex md:hidden items-center gap-2">
+            <DarkModeToggle />
+          </div>
           <button
-            className="md:hidden text-gray-700 hover:text-primary-600"
+            className="md:hidden text-[var(--theme-text,var(--color-text))] hover:opacity-80 transition-colors"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             aria-label="Toggle menu"
           >
@@ -72,28 +77,28 @@ export default function Header() {
           <div className="md:hidden py-4 space-y-4">
             <Link
               href="/"
-              className="block text-gray-700 hover:text-primary-600 font-medium"
+              className="block text-[var(--theme-text,var(--color-text))] hover:opacity-80 font-medium"
               onClick={() => setIsMenuOpen(false)}
             >
               Home
             </Link>
             <Link
               href="/about"
-              className="block text-gray-700 hover:text-primary-600 font-medium"
+              className="block text-[var(--theme-text,var(--color-text))] hover:opacity-80 font-medium"
               onClick={() => setIsMenuOpen(false)}
             >
               About
             </Link>
             <Link
-              href="/services"
-              className="block text-gray-700 hover:text-primary-600 font-medium"
+              href="/#services"
+              className="block text-[var(--theme-text,var(--color-text))] hover:opacity-80 font-medium"
               onClick={() => setIsMenuOpen(false)}
             >
               Services
             </Link>
             <Link
               href="/contact"
-              className="block bg-primary-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-primary-700 text-center"
+              className="block bg-[var(--theme-primary,var(--color-primary))] text-[var(--theme-onPrimary,#fff)] px-6 py-2.5 rounded-xl font-medium text-center"
               onClick={() => setIsMenuOpen(false)}
             >
               Contact

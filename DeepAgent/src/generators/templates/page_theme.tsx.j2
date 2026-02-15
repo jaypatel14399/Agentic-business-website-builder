@@ -1,0 +1,18 @@
+import SEO from '@/components/SEO'
+import * as Theme from '@/theme/{{ theme_id }}'
+
+const content = {{ content_for_theme | tojson }};
+
+export default function Home() {
+  return (
+    <>
+      <SEO />
+      <Theme.HeroSection content={content} />
+      <Theme.AboutSection content={content} />
+      <Theme.ServicesSection content={content} />
+      <Theme.TestimonialsSection content={content} />
+      <Theme.ContactSection content={content} />
+      <Theme.FooterSection content={content} />
+    </>
+  )
+}

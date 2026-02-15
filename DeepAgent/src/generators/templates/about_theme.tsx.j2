@@ -1,0 +1,20 @@
+import SEO from '@/components/SEO'
+import Footer from '@/components/Footer'
+import * as Theme from '@/theme/{{ theme_id }}'
+
+const content = {{ content_for_theme | tojson }};
+
+export const metadata = {
+  title: {{ ((content_for_theme.aboutTitle | default('About')) ~ ' | ' ~ (content_for_theme.businessName | default(''))) | tojson }},
+  description: {{ ((content_for_theme.aboutDescription | default(''))[:160]) | tojson }},
+};
+
+export default function AboutPage() {
+  return (
+    <>
+      <SEO />
+      <Theme.AboutPage content={content} />
+      <Footer />
+    </>
+  )
+}

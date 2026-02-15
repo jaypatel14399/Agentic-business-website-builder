@@ -45,6 +45,25 @@ export const websitesApi = {
   deleteWebsite: async (siteId: string): Promise<void> => {
     await apiClient.delete(`/api/websites/${siteId}`);
   },
+
+  /** Run npm install & build, returns preview_url to open the site */
+  buildWebsite: async (siteId: string): Promise<{ success: boolean; preview_url: string }> => {
+    const response = await apiClient.post<{ success: boolean; preview_url: string }>(
+      `/api/websites/${siteId}/build`
+    );
+    return response.data;
+  },
+
+  /**
+   * Run npm install and npm run dev in the site folder, wait until server is ready,
+   * then return the localhost URL to open in the browser.
+   */
+  buildAndOpen: async (siteId: string): Promise<{ success: boolean; url: string }> => {
+    const response = await apiClient.post<{ success: boolean; url: string }>(
+      `/api/websites/${siteId}/start-dev`
+    );
+    return response.data;
+  },
 };
 
 export const discoveryApi = {

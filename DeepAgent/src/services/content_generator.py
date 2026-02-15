@@ -211,6 +211,19 @@ Generate comprehensive website content including:
    - Footer description (brief, 1-2 sentences)
    - Copyright text (include current year)
 
+9. **Design Theme** (so each website looks unique and premium):
+   - theme_name: A short name (e.g. "Modern Minimal", "Bold Corporate", "Warm Professional", "Dark Elegant", "Fresh Clean")
+   - color_palette: Object with hex codes: primary (main brand, e.g. #0f766e), secondary (e.g. #0d9488), accent (highlight, e.g. #f59e0b), background (page bg, e.g. #f8fafc), text (main text, e.g. #1e293b), text_muted (e.g. #64748b). Choose a distinct palette that fits the industry and feels premium.
+   - font_heading: One Google Font name for headings (e.g. "Playfair Display", "Clash Display", "Outfit", "Sora", "DM Serif Display", "Plus Jakarta Sans"). Pick something that feels premium and distinct.
+   - font_body: One Google Font name for body text (e.g. "Inter", "Source Sans 3", "DM Sans", "Outfit", "Manrope"). Must pair well with font_heading.
+   - layout_style: One of "hero-centered", "hero-split", "hero-full-image", "card-heavy", "minimal-stripes". Determines hero and section layout.
+
+10. **Image Keywords** (for fetching or generating relevant images):
+   - hero: 2-3 search keywords for the main hero/header image (e.g. "professional roofing team", "residential roof repair")
+   - about: 2-3 keywords for about section image (e.g. "local business team", "contractor at work")
+   - services: For each service in the services list, add 1-2 keywords (e.g. "roof installation", "commercial roofing"). Return as a list of strings, one entry per service in the same order as the services array.
+   Use concrete, industry-specific terms so images are relevant to the business.
+
 **Content Guidelines**:
 - All content should match the brand tone: {requirements.brand_tone or 'professional'}
 - Incorporate SEO keywords naturally (avoid keyword stuffing)
@@ -262,6 +275,25 @@ Return your response as a JSON object with the following structure:
     "footer": {{
         "description": "Footer description",
         "copyright_text": "Copyright text with year"
+    }},
+    "design_theme": {{
+        "theme_name": "Short theme name",
+        "color_palette": {{
+            "primary": "#hex",
+            "secondary": "#hex",
+            "accent": "#hex",
+            "background": "#hex",
+            "text": "#hex",
+            "text_muted": "#hex"
+        }},
+        "font_heading": "Google Font name",
+        "font_body": "Google Font name",
+        "layout_style": "hero-centered|hero-split|hero-full-image|card-heavy|minimal-stripes"
+    }},
+    "image_keywords": {{
+        "hero": ["keyword1", "keyword2"],
+        "about": ["keyword1", "keyword2"],
+        "services": ["service1 keyword", "service2 keyword"]
     }}
 }}
 """
@@ -366,27 +398,40 @@ Return your response as a JSON object with the following structure:
         if 'footer' not in content:
             content['footer'] = {}
         
-        # Set defaults for business_info
-        if 'name' not in content['business_info']:
+        if 'design_theme' not in content:
+            content['design_theme'] = {}
+        
+        if 'image_keywords' not in content:
+            content['image_keywords'] = {}
+        
+        # Set defaults for business_info (fill when missing or empty so home page always has content)
+        if 'name' not in content['business_info'] or not content['business_info'].get('name'):
             content['business_info']['name'] = business.name
+
+        default_description = (
+            f"{business.name} is a {business.industry} business "
+            f"located in {business.city}, {business.state or ''}. "
+            f"We provide quality services to our customers."
+        )
+        if not content['business_info'].get('description'):
+            content['business_info']['description'] = default_description
+
+        default_tagline = (
+            f"Quality {business.industry} services in {business.city}"
+        )
+        if not content['business_info'].get('tagline'):
+            content['business_info']['tagline'] = default_tagline
         
-        if 'description' not in content['business_info']:
-            content['business_info']['description'] = (
-                f"{business.name} is a {business.industry} business "
-                f"located in {business.city}, {business.state or ''}. "
-                f"We provide quality services to our customers."
-            )
-        
-        if 'tagline' not in content['business_info']:
-            content['business_info']['tagline'] = (
-                f"Quality {business.industry} services in {business.city}"
-            )
-        
-        # Set defaults for about_content
-        if 'title' not in content['about_content']:
+        # Set defaults for about_content (so home/about sections always have content)
+        if 'title' not in content['about_content'] or not content['about_content'].get('title'):
             content['about_content']['title'] = f"About {business.name}"
-        
-        if 'values' not in content['about_content']:
+        if not content['about_content'].get('description'):
+            content['about_content']['description'] = (
+                f"{business.name} has been serving the {business.city}"
+                f"{', ' + business.state if business.state else ''} area with reliable {business.industry} services. "
+                "We focus on quality, transparency, and customer satisfaction on every job."
+            )
+        if 'values' not in content['about_content'] or not content['about_content'].get('values'):
             content['about_content']['values'] = ['Quality', 'Integrity', 'Customer Service']
         
         # Ensure services match primary_services
@@ -444,6 +489,28 @@ Return your response as a JSON object with the following structure:
             content['footer']['copyright_text'] = (
                 f"© {current_year} {business.name}. All rights reserved."
             )
+        
+        # Leave design_theme without color_palette so theme_utils picks one of 5 presets at random
+        # (Only ensure the key exists; do not set default palette so each site gets a varied theme.)
+        dt = content['design_theme']
+        if not dt.get('font_heading'):
+            dt['font_heading'] = 'Inter'
+        if not dt.get('font_body'):
+            dt['font_body'] = 'Inter'
+        if not dt.get('layout_style'):
+            dt['layout_style'] = 'hero-centered'
+        if not dt.get('theme_name'):
+            dt['theme_name'] = 'Professional'
+        
+        # Set defaults for image_keywords
+        ik = content['image_keywords']
+        industry = (business.industry or 'business').replace(' ', ',')
+        if not ik.get('hero'):
+            ik['hero'] = [industry, 'professional', 'quality']
+        if not ik.get('about'):
+            ik['about'] = [industry, 'team', 'local business']
+        if not ik.get('services'):
+            ik['services'] = [industry] * len(content.get('services', []) or [1])
         
         return content
     
@@ -574,5 +641,24 @@ Return your response as a JSON object with the following structure:
                     f"{business.industry} services in {location}."
                 ),
                 'copyright_text': f"© {current_year} {business.name}. All rights reserved."
-            }
+            },
+            'design_theme': {
+                'theme_name': 'Professional',
+                'color_palette': {
+                    'primary': '#0f766e',
+                    'secondary': '#0d9488',
+                    'accent': '#f59e0b',
+                    'background': '#f8fafc',
+                    'text': '#1e293b',
+                    'text_muted': '#64748b',
+                },
+                'font_heading': 'Playfair Display',
+                'font_body': 'Source Sans 3',
+                'layout_style': 'hero-centered',
+            },
+            'image_keywords': {
+                'hero': [business.industry or 'business', 'professional', 'quality'],
+                'about': [business.industry or 'business', 'team', 'local'],
+                'services': [business.industry or 'services'] * max(1, len(services)),
+            },
         }
