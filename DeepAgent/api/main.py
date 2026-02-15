@@ -4,7 +4,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes import jobs, websites
+from api.routes import jobs, websites, discovery
 from api.websocket_manager import websocket_manager
 
 # Configure logging
@@ -24,6 +24,8 @@ app = FastAPI(
 )
 
 # Configure CORS
+# Allow common development origins
+# Note: allow_origins=["*"] cannot be used with allow_credentials=True
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -31,6 +33,10 @@ app.add_middleware(
         "http://localhost:3000",  # Alternative React port
         "http://127.0.0.1:5173",
         "http://127.0.0.1:3000",
+        "http://localhost:5174",  # Alternative Vite port
+        "http://127.0.0.1:5174",
+        "http://localhost:8080",  # Alternative dev server
+        "http://127.0.0.1:8080",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -40,6 +46,7 @@ app.add_middleware(
 # Include routers
 app.include_router(jobs.router)
 app.include_router(websites.router)
+app.include_router(discovery.router)
 
 
 @app.get("/api/health")

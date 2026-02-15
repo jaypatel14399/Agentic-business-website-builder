@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { JobRequest, JobResponse, WebsiteListResponse, WebsiteInfo } from '../types';
+import { JobRequest, JobResponse, WebsiteListResponse, WebsiteInfo, DiscoveredBusiness, DiscoveryRequest } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -44,6 +44,19 @@ export const websitesApi = {
 
   deleteWebsite: async (siteId: string): Promise<void> => {
     await apiClient.delete(`/api/websites/${siteId}`);
+  },
+};
+
+export const discoveryApi = {
+  discoverBusinesses: async (request: DiscoveryRequest): Promise<DiscoveredBusiness[]> => {
+    // Use new /api/discover endpoint (backward compatible with /api/discover-businesses)
+    const response = await apiClient.post<DiscoveredBusiness[]>('/api/discover', request);
+    return response.data;
+  },
+
+  generateWebsite: async (businessId: string): Promise<JobResponse> => {
+    const response = await apiClient.post<JobResponse>('/api/generate-website', { businessId });
+    return response.data;
   },
 };
 

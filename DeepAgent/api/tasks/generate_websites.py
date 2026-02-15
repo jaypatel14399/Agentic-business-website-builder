@@ -14,6 +14,7 @@ if str(project_root) not in sys.path:
 
 from src.utils.config import get_config
 from src.agents.orchestrator import OrchestratorAgent
+from src.models.business import Business
 from api.models.job import JobRequest, JobStatus, ProgressUpdate, WebsiteInfo
 from api.storage.job_storage import job_storage
 from api.websocket_manager import websocket_manager
@@ -86,6 +87,30 @@ def run_website_generation_task(job_id: str, request: JobRequest):
             except Exception as e:
                 logger.error(f"Error in progress callback: {str(e)}")
         
+        # Convert business/businesses to Business models if provided (from discovery UI)
+        pre_discovered_businesses = None
+        business_list = request.businesses if request.businesses else ([request.business] if request.business else None)
+        if business_list:
+            logger.info(f"Using {len(business_list)} pre-discovered business(es) from discovery UI")
+            pre_discovered_businesses = []
+            for b in business_list:
+                business_obj = Business(
+                    name=b.name,
+                    address=b.address,
+                    phone=b.phone,
+                    industry=request.industry,
+                    city=request.city,
+                    state=request.state,
+                    website_url=b.website,
+                    has_website=b.hasWebsite,
+                    google_place_id=b.place_id,
+                    rating=b.rating,
+                    reviews=[],
+                    latitude=None,
+                    longitude=None,
+                )
+                pre_discovered_businesses.append(business_obj)
+        
         # Run orchestrator with progress callback
         logger.info(f"Starting website generation for job {job_id}")
         generated_paths = orchestrator.generate_websites(
@@ -93,7 +118,8 @@ def run_website_generation_task(job_id: str, request: JobRequest):
             city=request.city,
             state=request.state,
             limit=request.limit,
-            progress_callback=progress_callback
+            progress_callback=progress_callback,
+            pre_discovered_businesses=pre_discovered_businesses
         )
         
         # Convert paths to WebsiteInfo objects

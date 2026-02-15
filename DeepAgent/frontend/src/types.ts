@@ -6,11 +6,25 @@ export enum JobStatus {
   CANCELLED = 'cancelled',
 }
 
+/** Business object sent when creating a job from discovery UI (pre-discovered). */
+export interface JobRequestBusiness {
+  place_id: string;
+  name: string;
+  address: string;
+  phone?: string;
+  rating?: number;
+  reviews?: number;
+  website?: string;
+  hasWebsite: boolean;
+}
+
 export interface JobRequest {
   industry: string;
   city: string;
   state: string;
   limit?: number;
+  /** Pre-discovered businesses from discovery UI (ensures these exact businesses are generated). */
+  businesses?: JobRequestBusiness[];
 }
 
 export interface ProgressUpdate {
@@ -55,4 +69,25 @@ export interface WebSocketMessage {
   details?: Record<string, any>;
   job_id?: string;
   status?: string;
+}
+
+export interface DiscoveredBusiness {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  rating?: number;
+  reviews?: number;
+  address: string;
+  phone?: string;
+  website?: string;
+  hasWebsite?: boolean;
+  websiteStatus?: string;
+}
+
+export interface DiscoveryRequest {
+  industry: string;
+  city: string;
+  state: string;
+  limit?: number;
 }

@@ -1,106 +1,56 @@
 import { ProgressUpdate } from '../types';
-import {
-  PIPELINE_STEPS,
-  getStepLabel,
-  isStepActive,
-  isStepCompleted,
-} from '../constants/pipelineSteps';
+import { DarkProgressBar } from './DarkProgressBar';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface ProgressTrackerProps {
   progress?: ProgressUpdate;
   status: string;
 }
 
-/** Steps to show in the list (exclude initializing and failed as separate row; failed shown in summary) */
-const TRACKER_STEP_IDS = PIPELINE_STEPS.filter(
-  (s) => s.id !== 'initializing' && s.id !== 'failed'
-).map((s) => s.id);
-
 export const ProgressTracker = ({ progress, status }: ProgressTrackerProps) => {
-  const currentStepId = progress?.step ?? '';
+  const { theme } = useTheme();
   const details = progress?.details ?? {};
-  const isDone = currentStepId === 'completed' || currentStepId === 'failed' || status === 'completed' || status === 'failed';
+  const isDone = progress?.step === 'completed' || progress?.step === 'failed' || status === 'completed' || status === 'failed';
   const websitesGenerated = details.websites_generated as number | undefined;
   const totalBusinesses = details.total_businesses as number | undefined;
   const errorMessage = details.error as string | undefined;
   const message = details.message as string | undefined;
 
-  const stepsToShow = PIPELINE_STEPS.filter((s) => TRACKER_STEP_IDS.includes(s.id));
+  const cardBg = theme === 'dark' ? 'bg-[#111827] border-[#1F2937]' : 'bg-white border-gray-200';
+  const titleColor = theme === 'dark' ? 'text-gray-100' : 'text-gray-900';
+  const textColor = theme === 'dark' ? 'text-gray-400' : 'text-gray-600';
 
   return (
-    <div className="progress-tracker">
-      <h3 className="progress-tracker__title">Progress</h3>
-      <div className="progress-tracker__status">
-        Status: <span className="progress-tracker__status-value">{status}</span>
+    <div className={`${cardBg} border rounded-xl p-6 transition-colors duration-200`}>
+      <div className="flex justify-between items-center mb-6">
+        <h3 className={`text-sm font-semibold ${titleColor}`}>Progress</h3>
+        <span className={`text-xs ${textColor} capitalize`}>{status}</span>
       </div>
       {progress && (
-        <div className="progress-tracker__bar">
-          <div
-            className="progress-tracker__bar-fill"
-            style={{ width: `${progress.progress}%` }}
-          />
+        <div className="mb-6">
+          <DarkProgressBar progress={progress.progress} />
         </div>
       )}
-      <div className="progress-tracker__steps">
-        {stepsToShow.map((step) => {
-          const active = isStepActive(currentStepId, step.id);
-          const completed = isStepCompleted(currentStepId, step.id);
-
-          return (
-            <div
-              key={step.id}
-              className={`progress-tracker__step progress-tracker__step--${completed ? 'completed' : active ? 'active' : 'pending'}`}
-            >
-              <div className="progress-tracker__step-indicator">
-                {completed ? '✓' : stepsToShow.indexOf(step) + 1}
-              </div>
-              <div className="progress-tracker__step-content">
-                <div className="progress-tracker__step-label">{getStepLabel(step.id)}</div>
-                {active && progress?.details && (
-                  <div className="progress-tracker__step-details">
-                    {details.business_name && (
-                      <span className="progress-tracker__business-name">
-                        {details.business_name}
-                        {details.business_index != null && details.total_businesses != null && (
-                          <span className="progress-tracker__business-index">
-                            {' '}({details.business_index}/{details.total_businesses})
-                          </span>
-                        )}
-                      </span>
-                    )}
-                    {(message || details.message) && (
-                      <span className="progress-tracker__message">
-                        {message ?? details.message}
-                      </span>
-                    )}
-                    {!details.business_name && !message && !details.message && Object.keys(details).length > 0 && (
-                      <span className="progress-tracker__message">
-                        {JSON.stringify(details)}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
       {isDone && (
-        <div className={`progress-tracker__summary progress-tracker__summary--${currentStepId === 'failed' ? 'failed' : 'completed'}`}>
-          {currentStepId === 'failed' || status === 'failed' ? (
+        <div className={`p-4 rounded-lg text-sm ${
+          progress?.step === 'failed' || status === 'failed'
+            ? 'bg-red-500/10 border border-red-500/20 text-red-500'
+            : 'bg-green-500/10 border border-green-500/20 text-green-600'
+        }`}>
+          {progress?.step === 'failed' || status === 'failed' ? (
             <>
-              <strong>Run failed</strong>
-              {errorMessage && <p className="progress-tracker__summary-error">{errorMessage}</p>}
+              <div className="font-semibold mb-2">Run failed</div>
+              {errorMessage && <div className={`text-xs ${textColor}`}>{errorMessage}</div>}
             </>
           ) : (
             <>
-              <strong>Run completed</strong>
+              <div className="font-semibold mb-2">Run completed</div>
               {websitesGenerated != null && totalBusinesses != null && (
-                <p className="progress-tracker__summary-count">
+                <div className={`text-xs ${textColor}`}>
                   Generated {websitesGenerated} of {totalBusinesses} website(s).
-                </p>
+                </div>
               )}
-              {message && <p className="progress-tracker__summary-message">{message}</p>}
+              {message && <div className={`text-xs ${textColor} mt-1`}>{message}</div>}
             </>
           )}
         </div>
